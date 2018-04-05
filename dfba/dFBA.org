@@ -1,0 +1,271 @@
+* Defining Dynamic FBA model for a single species
+** Import headers
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+%matplotlib inline
+import cobra
+import PyDSTool as dst
+import pandas as pd
+import matplotlib.pyplot as plt
+import copy
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[24]:
+:END:
+** File Paths for Media spec and FBA model
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+model = cobra.io.read_sbml_model('./data/Bacteroides_sp_1_1_14.xml')
+mediaFluxes = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[2]:
+:END:
+** Extract exchange reactions into variable definition and ics dictionary
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+def cleanupname(name):
+    """
+    The reaction names in the model files 
+    don't have brackets or parentheses. I replaced
+    those found in the mediaFluxes file.
+    """
+    name = name.replace('[', '_LPAREN_')
+    name = name.replace(']', '_RPAREN_')
+    name = name.replace('(', '_LPAREN_')
+    name = name.replace(')', '_RPAREN_')
+    return name
+
+"""
+Initialize dictionaries for defining the ODE variables for a 
+single species
+"""
+
+VarDef = dict()
+ParDef = dict()
+ICS = dict()
+
+solution = model.optimize() # Get fluxes
+all_exchanges = model.exchanges
+media_derived_components = dict()
+
+exchange_reaction_ids = [rxn.id for rxn in all_exchanges]
+
+"""
+Extract the reaction names and flux values into
+a dictionary
+"""
+for i, row in mediaFluxes.iterrows():
+    N = cleanupname(row.Reaction)
+    if N in exchange_reaction_ids:
+        media_derived_components[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+
+"""
+Get the outfluxes
+"""
+out_fluxes = []
+for k in all_exchanges:
+    if k.reversibility and k.id not in media_derived_components.keys():
+        out_fluxes.append(k.id)
+
+ParDef['Dilution'] = 0.00385 # half life of 3 hours
+VarDef['X'] = str(solution.objective_value/60.0) + ' * X'
+ICS['X'] = 1.0
+for r in all_exchanges:
+    if r.id in media_derived_components.keys():
+        ParDef[r.id + '_influx'] = media_derived_components[r.id]
+        ParDef[r.id + '_consumption'] = solution.fluxes[r.id]
+        ICS[r.id] = media_derived_components[r.id]
+        VarDef[r.id] = r.id + '_influx + ' + r.id + '_consumption' + ' * X'#' * X * ' + r.id
+    if r.id in out_fluxes:
+        ParDef[r.id + '_outflux'] = solution.fluxes[r.id] 
+        VarDef[r.id] = r.id + '_outflux * X'
+        ICS[r.id] = 0.0
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[39]:
+:END:
+** Define PyDSTool Model
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+ModelDef = dst.args(name='Bacteroides',
+                   varspecs=VarDef,
+                   ics=ICS,
+                   pars=ParDef,
+                   tdata=[0,10])
+
+ModelDS = dst.Vode_ODEsystem(ModelDef)
+P = ModelDS.compute('test').sample()
+plt.plot(P['t'], P['X'],)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[40]:
+: [<matplotlib.lines.Line2D at 0x7f84b5fa7c90>]
+[[file:./obipy-resources/8638dvR.png]]
+:END:
+
+** Play area
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+P
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[25]:
+#+BEGIN_EXAMPLE
+  Pointset <no name> (parameterized)
+  Independent variable:
+  t:  [ 0.          0.01001001, ...,   9.98998999  10.        ]
+  Coordinates:
+  EX_2obut_LPAREN_e_RPAREN_:  [ 0.         -0.01001015, ..., -10.13040796 -10.14070082]
+  EX_4hbz_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_ac_LPAREN_e_RPAREN_:  [ 0.          0.03430283, ...,  34.71492836  34.7502    ]
+  EX_acgam_LPAREN_e_RPAREN_:  [ 0.         -0.01001015, ..., -10.13040796 -10.14070082]
+  EX_adn_LPAREN_e_RPAREN_:  [ 0.        -0.0077742, ..., -7.86759226 -7.87558602]
+  EX_adpcbl_LPAREN_e_RPAREN_:  [  1.78273276e-09   1.80057793e-09, ...,   1.95922152e-08   1.96100604e-08]
+  EX_arab_L_LPAREN_e_RPAREN_:  [ 0.         -0.00178964, ..., -1.81114473 -1.81298492]
+  EX_arg_L_LPAREN_e_RPAREN_:  [ 0.02824424  0.02804427, ..., -0.17808975 -0.17830335]
+  EX_asn_L_LPAREN_e_RPAREN_:  [ 0.         -0.00225228, ..., -2.27934179 -2.28165769]
+  EX_ca2_LPAREN_e_RPAREN_:  [ 0.02293063  0.02314709, ...,  0.23877385  0.23898994]
+  EX_cbl1_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_cit_LPAREN_e_RPAREN_:  [  0.00000000e+00  -2.61529569e-05, ..., -0.02646715 -0.02649404]
+  EX_cl_LPAREN_e_RPAREN_:  [ 0.1607257   0.16232149, ...,  1.75314029  1.75473571]
+  EX_cobalt2_LPAREN_e_RPAREN_:  [  0.00000000e+00  -1.30764784e-05, ..., -0.01323357 -0.01324702]
+  EX_cu2_LPAREN_e_RPAREN_:  [  3.28666111e-05   2.01191277e-05, ..., -0.01287237 -0.01288549]
+  EX_cytd_LPAREN_e_RPAREN_:  [ 0.         -0.01001015, ..., -10.13040796 -10.14070082]
+  EX_dad_2_LPAREN_e_RPAREN_:  [ 0.          0.00724923, ...,  7.33631578  7.34376974]
+  EX_dcyt_LPAREN_e_RPAREN_:  [ 0.        -0.0072689, ..., -7.35622189 -7.36369608]
+  EX_ddca_LPAREN_e_RPAREN_:  [  7.07302010e-05   7.14382111e-05, ...,  0.00077732  0.00077803]
+  EX_dgsn_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_fe2_LPAREN_e_RPAREN_:  [ 0.00029476  0.00028464, ..., -0.00999415 -0.01000465]
+  EX_fe3_LPAREN_e_RPAREN_:  [ 0.00029476  0.00028464, ..., -0.00999415 -0.01000465]
+  EX_for_LPAREN_e_RPAREN_:  [ 0.          0.00961549, ...,  9.73100867  9.74089573]
+  EX_gal_LPAREN_e_RPAREN_:  [ 0.00070155  0.00070858, ...,  0.00771006  0.00771708]
+  EX_glu_L_LPAREN_e_RPAREN_:  [ 0.09084407  0.08995159, ..., -0.82509802 -0.82604139]
+  EX_gsn_LPAREN_e_RPAREN_:  [ 0.         -0.00024086, ..., -0.24375168 -0.24399935]
+  EX_h2_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_h2o_LPAREN_e_RPAREN_:  [ 126.16065054  127.40007944, ...,  1362.78220279  1364.02096966]
+  EX_h2s_LPAREN_e_RPAREN_:  [ 0.         -0.00043829, ..., -0.44355063 -0.44400129]
+  EX_h_LPAREN_e_RPAREN_:  [ 0.         -0.01001015, ..., -10.13040796 -10.14070082]
+  EX_hdca_LPAREN_e_RPAREN_:  [ 0.02392163  0.02416108, ...,  0.26289844  0.2631379 ]
+  EX_indole_LPAREN_e_RPAREN_:  [  0.00000000e+00  -9.23578407e-05, ..., -0.09346739 -0.09356236]
+  EX_k_LPAREN_e_RPAREN_:  [ 0.08086651  0.08166291, ...,  0.87548856  0.87628459]
+  EX_leu_L_LPAREN_e_RPAREN_:  [ 0.04397078  0.04367641, ..., -0.26010165 -0.26041676]
+  EX_lys_L_LPAREN_e_RPAREN_:  [ 0.03218525  0.03194891, ..., -0.2115082  -0.21176032]
+  EX_mg2_LPAREN_e_RPAREN_:  [ 0.02163564  0.02183913, ...,  0.22454186  0.22474499]
+  EX_mn2_LPAREN_e_RPAREN_:  [ 0.0001211   0.00010923, ..., -0.01190273 -0.01191496]
+  EX_na1_LPAREN_e_RPAREN_:  [ 0.10271658  0.10374478, ...,  1.12885422  1.12988242]
+  EX_nac_LPAREN_e_RPAREN_:  [ 0.00033328  0.00031047, ..., -0.02280436 -0.02282792]
+  EX_no2_LPAREN_e_RPAREN_:  [ 0.         -0.01001015, ..., -10.13040796 -10.14070082]
+  EX_ocdca_LPAREN_e_RPAREN_:  [ 0.00654454  0.00661005, ...,  0.07192446  0.07198998]
+  EX_pheme_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_pi_LPAREN_e_RPAREN_:  [ 0.01551116  0.01370618, ..., -1.81332964 -1.81518998]
+  EX_pro_L_LPAREN_e_RPAREN_:  [ 0.03535046  0.0353436 , ...,  0.02344005  0.02342299]
+  EX_ptrc_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_rmn_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_ser_L_LPAREN_e_RPAREN_:  [ 0.03619093  0.02654306, ..., -9.73266996 -9.74260056]
+  EX_so4_LPAREN_e_RPAREN_:  [  0.00000000e+00  -1.30764784e-05, ..., -0.01323357 -0.01324702]
+  EX_spmd_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_thr_L_LPAREN_e_RPAREN_:  [ 0.02656871  0.02458238, ..., -1.98735191 -1.98940185]
+  EX_thymd_LPAREN_e_RPAREN_:  [  0.00000000e+00  -1.96698072e-05, ..., -0.01990611 -0.01992634]
+  EX_ttdca_LPAREN_e_RPAREN_:  [ 0.00054688  0.00055235, ...,  0.00601021  0.00601568]
+  EX_ura_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_uri_LPAREN_e_RPAREN_:  [ 0.          0.01680702, ...,  17.00893567  17.02621737]
+  EX_val_L_LPAREN_e_RPAREN_:  [ 0.03540184  0.03395438, ..., -1.43440758 -1.43590592]
+  EX_xan_LPAREN_e_RPAREN_:  [ 0.  0., ...,  0.  0.]
+  EX_xyl_D_LPAREN_e_RPAREN_:  [ 0.         -0.00178964, ..., -1.81114473 -1.81298492]
+  EX_zn2_LPAREN_e_RPAREN_:  [ 0.00017     0.00015862, ..., -0.01136528 -0.01137702]
+  X:  [ 1.          1.00002791, ...,  1.02824283  1.02827153]
+  Labels by index: Empty
+#+END_EXAMPLE
+:END:
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+VarDef
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[23]:
+#+BEGIN_EXAMPLE
+  {'EX_2obut_LPAREN_e_RPAREN_': 'EX_2obut_LPAREN_e_RPAREN__outflux * X',
+  'EX_4hbz_LPAREN_e_RPAREN_': 'EX_4hbz_LPAREN_e_RPAREN__outflux * X',
+  'EX_ac_LPAREN_e_RPAREN_': 'EX_ac_LPAREN_e_RPAREN__outflux * X',
+  'EX_acgam_LPAREN_e_RPAREN_': 'EX_acgam_LPAREN_e_RPAREN__outflux * X',
+  'EX_adn_LPAREN_e_RPAREN_': 'EX_adn_LPAREN_e_RPAREN__outflux * X',
+  'EX_adpcbl_LPAREN_e_RPAREN_': 'EX_adpcbl_LPAREN_e_RPAREN__influx + EX_adpcbl_LPAREN_e_RPAREN__consumption * X',
+  'EX_arab_L_LPAREN_e_RPAREN_': 'EX_arab_L_LPAREN_e_RPAREN__outflux * X',
+  'EX_arg_L_LPAREN_e_RPAREN_': 'EX_arg_L_LPAREN_e_RPAREN__influx + EX_arg_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_asn_L_LPAREN_e_RPAREN_': 'EX_asn_L_LPAREN_e_RPAREN__outflux * X',
+  'EX_ca2_LPAREN_e_RPAREN_': 'EX_ca2_LPAREN_e_RPAREN__influx + EX_ca2_LPAREN_e_RPAREN__consumption * X',
+  'EX_cbl1_LPAREN_e_RPAREN_': 'EX_cbl1_LPAREN_e_RPAREN__outflux * X',
+  'EX_cit_LPAREN_e_RPAREN_': 'EX_cit_LPAREN_e_RPAREN__outflux * X',
+  'EX_cl_LPAREN_e_RPAREN_': 'EX_cl_LPAREN_e_RPAREN__influx + EX_cl_LPAREN_e_RPAREN__consumption * X',
+  'EX_cobalt2_LPAREN_e_RPAREN_': 'EX_cobalt2_LPAREN_e_RPAREN__outflux * X',
+  'EX_cu2_LPAREN_e_RPAREN_': 'EX_cu2_LPAREN_e_RPAREN__influx + EX_cu2_LPAREN_e_RPAREN__consumption * X',
+  'EX_cytd_LPAREN_e_RPAREN_': 'EX_cytd_LPAREN_e_RPAREN__outflux * X',
+  'EX_dad_2_LPAREN_e_RPAREN_': 'EX_dad_2_LPAREN_e_RPAREN__outflux * X',
+  'EX_dcyt_LPAREN_e_RPAREN_': 'EX_dcyt_LPAREN_e_RPAREN__outflux * X',
+  'EX_ddca_LPAREN_e_RPAREN_': 'EX_ddca_LPAREN_e_RPAREN__influx + EX_ddca_LPAREN_e_RPAREN__consumption * X',
+  'EX_dgsn_LPAREN_e_RPAREN_': 'EX_dgsn_LPAREN_e_RPAREN__outflux * X',
+  'EX_fe2_LPAREN_e_RPAREN_': 'EX_fe2_LPAREN_e_RPAREN__influx + EX_fe2_LPAREN_e_RPAREN__consumption * X',
+  'EX_fe3_LPAREN_e_RPAREN_': 'EX_fe3_LPAREN_e_RPAREN__influx + EX_fe3_LPAREN_e_RPAREN__consumption * X',
+  'EX_for_LPAREN_e_RPAREN_': 'EX_for_LPAREN_e_RPAREN__outflux * X',
+  'EX_gal_LPAREN_e_RPAREN_': 'EX_gal_LPAREN_e_RPAREN__influx + EX_gal_LPAREN_e_RPAREN__consumption * X',
+  'EX_glu_L_LPAREN_e_RPAREN_': 'EX_glu_L_LPAREN_e_RPAREN__influx + EX_glu_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_gsn_LPAREN_e_RPAREN_': 'EX_gsn_LPAREN_e_RPAREN__outflux * X',
+  'EX_h2_LPAREN_e_RPAREN_': 'EX_h2_LPAREN_e_RPAREN__outflux * X',
+  'EX_h2o_LPAREN_e_RPAREN_': 'EX_h2o_LPAREN_e_RPAREN__influx + EX_h2o_LPAREN_e_RPAREN__consumption * X',
+  'EX_h2s_LPAREN_e_RPAREN_': 'EX_h2s_LPAREN_e_RPAREN__outflux * X',
+  'EX_h_LPAREN_e_RPAREN_': 'EX_h_LPAREN_e_RPAREN__outflux * X',
+  'EX_hdca_LPAREN_e_RPAREN_': 'EX_hdca_LPAREN_e_RPAREN__influx + EX_hdca_LPAREN_e_RPAREN__consumption * X',
+  'EX_indole_LPAREN_e_RPAREN_': 'EX_indole_LPAREN_e_RPAREN__outflux * X',
+  'EX_k_LPAREN_e_RPAREN_': 'EX_k_LPAREN_e_RPAREN__influx + EX_k_LPAREN_e_RPAREN__consumption * X',
+  'EX_leu_L_LPAREN_e_RPAREN_': 'EX_leu_L_LPAREN_e_RPAREN__influx + EX_leu_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_lys_L_LPAREN_e_RPAREN_': 'EX_lys_L_LPAREN_e_RPAREN__influx + EX_lys_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_mg2_LPAREN_e_RPAREN_': 'EX_mg2_LPAREN_e_RPAREN__influx + EX_mg2_LPAREN_e_RPAREN__consumption * X',
+  'EX_mn2_LPAREN_e_RPAREN_': 'EX_mn2_LPAREN_e_RPAREN__influx + EX_mn2_LPAREN_e_RPAREN__consumption * X',
+  'EX_na1_LPAREN_e_RPAREN_': 'EX_na1_LPAREN_e_RPAREN__influx + EX_na1_LPAREN_e_RPAREN__consumption * X',
+  'EX_nac_LPAREN_e_RPAREN_': 'EX_nac_LPAREN_e_RPAREN__influx + EX_nac_LPAREN_e_RPAREN__consumption * X',
+  'EX_no2_LPAREN_e_RPAREN_': 'EX_no2_LPAREN_e_RPAREN__outflux * X',
+  'EX_ocdca_LPAREN_e_RPAREN_': 'EX_ocdca_LPAREN_e_RPAREN__influx + EX_ocdca_LPAREN_e_RPAREN__consumption * X',
+  'EX_pheme_LPAREN_e_RPAREN_': 'EX_pheme_LPAREN_e_RPAREN__outflux * X',
+  'EX_pi_LPAREN_e_RPAREN_': 'EX_pi_LPAREN_e_RPAREN__influx + EX_pi_LPAREN_e_RPAREN__consumption * X',
+  'EX_pro_L_LPAREN_e_RPAREN_': 'EX_pro_L_LPAREN_e_RPAREN__influx + EX_pro_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_ptrc_LPAREN_e_RPAREN_': 'EX_ptrc_LPAREN_e_RPAREN__outflux * X',
+  'EX_rmn_LPAREN_e_RPAREN_': 'EX_rmn_LPAREN_e_RPAREN__outflux * X',
+  'EX_ser_L_LPAREN_e_RPAREN_': 'EX_ser_L_LPAREN_e_RPAREN__influx + EX_ser_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_so4_LPAREN_e_RPAREN_': 'EX_so4_LPAREN_e_RPAREN__outflux * X',
+  'EX_spmd_LPAREN_e_RPAREN_': 'EX_spmd_LPAREN_e_RPAREN__outflux * X',
+  'EX_thr_L_LPAREN_e_RPAREN_': 'EX_thr_L_LPAREN_e_RPAREN__influx + EX_thr_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_thymd_LPAREN_e_RPAREN_': 'EX_thymd_LPAREN_e_RPAREN__outflux * X',
+  'EX_ttdca_LPAREN_e_RPAREN_': 'EX_ttdca_LPAREN_e_RPAREN__influx + EX_ttdca_LPAREN_e_RPAREN__consumption * X',
+  'EX_ura_LPAREN_e_RPAREN_': 'EX_ura_LPAREN_e_RPAREN__outflux * X',
+  'EX_uri_LPAREN_e_RPAREN_': 'EX_uri_LPAREN_e_RPAREN__outflux * X',
+  'EX_val_L_LPAREN_e_RPAREN_': 'EX_val_L_LPAREN_e_RPAREN__influx + EX_val_L_LPAREN_e_RPAREN__consumption * X',
+  'EX_xan_LPAREN_e_RPAREN_': 'EX_xan_LPAREN_e_RPAREN__outflux * X',
+  'EX_xyl_D_LPAREN_e_RPAREN_': 'EX_xyl_D_LPAREN_e_RPAREN__outflux * X',
+  'EX_zn2_LPAREN_e_RPAREN_': 'EX_zn2_LPAREN_e_RPAREN__influx + EX_zn2_LPAREN_e_RPAREN__consumption * X',
+  'X': '0.00278792644757 * X'}
+#+END_EXAMPLE
+:END:
+** Create Upperlimits
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+model_copy = copy.deepcopy(model)
+def updateLowerBounds(model, P):
+    all_exchanges = model.exchanges
+    for k in all_exchanges:
+        if P[k.id][-1] < 0.0:
+            model.reactions.get_by_id(k).lower_bound = P[k.id][-1]
+        elif P[k.id][-1] > 0.0:
+            model.reactions.get_by_id(k).lower_bound = P[k.id][-1]
+    return(model)
+
+
+#+END_SRC
+#+BEGIN_SRC ipython :session :exports both :results raw drawer
+
+#+END_SRC
