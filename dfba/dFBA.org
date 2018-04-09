@@ -55,7 +55,7 @@ exchange_reaction_ids = [rxn.id for rxn in all_exchanges]
 
 #+RESULTS:
 :RESULTS:
-# Out[5]:
+# Out[3]:
 :END:
 
 *** Extract the reaction names and flux values into a dictionary.
@@ -69,7 +69,7 @@ for i, row in mediaFluxes.iterrows():
 
 #+RESULTS:
 :RESULTS:
-# Out[6]:
+# Out[4]:
 :END:
 
 *** Get the outfluxes
@@ -96,7 +96,7 @@ for r in all_exchanges:
 
 #+RESULTS:
 :RESULTS:
-# Out[7]:
+# Out[5]:
 :END:
 
 ** Define PyDSTool Model
@@ -105,7 +105,7 @@ for r in all_exchanges:
 
   ParDef = copy.deepcopy(ParDef_base)
   ICS = copy.deepcopy(ICS_base)
-  def simulateModel(ModelDS, ParDef, ICS,TSPAN, tstart):
+  def simulateModel(ModelDS, ParDef, ICS, TSPAN, tstart):
       ModelDS.set(ics=ICS ,pars=ParDef,tdata=[tstart, tstart + TSPAN])
       P = ModelDS.compute('test').sample(dt=0.1)
       return(P)
@@ -124,20 +124,23 @@ for r in all_exchanges:
 
 #+RESULTS:
 :RESULTS:
-# Out[8]:
+# Out[16]:
 :END:
 
 ** Create Upperlimit
-#+BEGIN_SRC ipython :session :exports both :results raw drawer 
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
   AllPoints = []
   AllPoints.append(P)
   OriginalLB = {}
   model_copy = copy.deepcopy(model)
   T0=TSPAN
+
   for r in model_copy.reactions:
       if r in model_copy.exchanges:
           OriginalLB[r.id] = r.lower_bound
+
   for i in range(0, 5):
+      print(T0)
       solution = model_copy.optimize()
       all_exchanges = model_copy.exchanges
       for r in all_exchanges:
@@ -146,7 +149,7 @@ for r in all_exchanges:
               if r.id == 'EX_glu_L_LPAREN_e_RPAREN_':
                   print(r.id + ': ' +str(OriginalLB[r.id]) + ' -> ' + str(model_copy.reactions.get_by_id(r.id).lower_bound))
       solution = model_copy.optimize()
-      print('mu= ' +str(solution.objective_value))
+   #   print('mu= ' +str(solution.objective_value))
       ParDef['mu'] = solution.objective_value/60.0
       ICS['X'] = P['X'][-1]
       for r in all_exchanges:
@@ -157,15 +160,17 @@ for r in all_exchanges:
           if r.id in out_fluxes:
               ParDef[r.id + '_outflux'] = solution.fluxes[r.id] 
               ICS[r.id] = P[r.id][-1] # 0.0
-      P = simulateModel(ModelDS, ParDef, ICS,TSPAN, T0 + TSPAN)
-      print('EX_glu_L_LPAREN_e_RPAREN_' + str(P['EX_glu_L_LPAREN_e_RPAREN_'][-1]))
+      del P
+      P = simulateModel(ModelDS, ParDef, ICS,TSPAN, T0)
+  #    print('EX_glu_L_LPAREN_e_RPAREN_' + str(P['EX_glu_L_LPAREN_e_RPAREN_'][-1]))
       T0 += TSPAN
+
       AllPoints.append(P)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[9]:
+# Out[22]:
 :END:
 
 
@@ -181,12 +186,13 @@ for r in all_exchanges:
                           T = P['t']
                           X = P[v]
                           plt.plot(T,X)
-
+  plt.xlabel('Time (minutes)')
+  plt.ylabel('mmol')
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[11]:
-[[file:./obipy-resources/17210rWk.png]]
+# Out[31]:
+: Text(0,0.5,u'mmol')
+[[file:./obipy-resources/17210sXr.png]]
 :END:
-
