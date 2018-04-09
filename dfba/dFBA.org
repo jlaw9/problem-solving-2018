@@ -81,7 +81,7 @@ for k in all_exchanges:
 
 ParDef_base['mu'] = solution.objective_value/60.0
 VarDef['X'] =  'mu * X'
-ICS_base['X'] = 1e-8
+ICS_base['X'] = 1e-3
 for r in all_exchanges:
     if r.id in media_derived_components.keys():
         ParDef_base[r.id + '_influx'] = media_derived_components[r.id]
@@ -101,7 +101,7 @@ for r in all_exchanges:
 
 ** Define PyDSTool Model
 #+BEGIN_SRC ipython :session :exports both :results raw drawer
-  TSPAN = 100
+  TSPAN = 5
 
   ParDef = copy.deepcopy(ParDef_base)
   ICS = copy.deepcopy(ICS_base)
@@ -115,7 +115,7 @@ for r in all_exchanges:
                     varspecs=VarDef,
                     pars=ParDef,
                     ics=ICS,
-                    tdata=[0,10])
+                    )
 
   ModelDS = dst.Vode_ODEsystem(ModelDef)
 
@@ -124,7 +124,7 @@ for r in all_exchanges:
 
 #+RESULTS:
 :RESULTS:
-# Out[16]:
+# Out[6]:
 :END:
 
 ** Create Upperlimit
@@ -139,7 +139,7 @@ for r in all_exchanges:
       if r in model_copy.exchanges:
           OriginalLB[r.id] = r.lower_bound
 
-  for i in range(0, 5):
+  for i in range(0, 10):
       print(T0)
       solution = model_copy.optimize()
       all_exchanges = model_copy.exchanges
@@ -154,9 +154,13 @@ for r in all_exchanges:
       ICS['X'] = P['X'][-1]
       for r in all_exchanges:
           if r.id in media_derived_components.keys():
-              ParDef[r.id + '_influx'] = media_derived_components[r.id]
-              ParDef[r.id + '_consumption'] = solution.fluxes[r.id]
-              ICS[r.id] = P[r.id][-1]
+                 if P[r.id][-1] < 0.0:
+                     ICS[r.id] = 0.0
+                 else:
+    
+                     ParDef[r.id + '_influx'] = media_derived_components[r.id]
+                     ParDef[r.id + '_consumption'] = solution.fluxes[r.id]
+                     ICS[r.id] = P[r.id][-1]
           if r.id in out_fluxes:
               ParDef[r.id + '_outflux'] = solution.fluxes[r.id] 
               ICS[r.id] = P[r.id][-1] # 0.0
@@ -170,29 +174,63 @@ for r in all_exchanges:
 
 #+RESULTS:
 :RESULTS:
-# Out[22]:
+# Out[8]:
 :END:
 
 
-#+BEGIN_SRC ipython :session :exports both :results raw drawer
+
+** Results
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/metabolite-traj-1e-3.png
    T=[]
    X=[]
   for v in VarDef.keys():
           for P in AllPoints:
-                  # T += list(P['t'])
-                  # X += list(P[v])
                   if 'h2o' not in v :
-                          print(v)
                           T = P['t']
                           X = P[v]
                           plt.plot(T,X)
+                  # T = P['t']
+                  # X = P['X']
+                  # plt.plot(T,X)
+
   plt.xlabel('Time (minutes)')
   plt.ylabel('mmol')
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[31]:
+# Out[9]:
 : Text(0,0.5,u'mmol')
-[[file:./obipy-resources/17210sXr.png]]
+[[file:./obipy-resources/metabolite-traj-1e-3.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/biomass-1e-1.png
+   T=[]
+   X=[]
+  for v in VarDef.keys():
+          for P in AllPoints:
+
+                  T = P['t']
+                  X = P['X']
+                  plt.plot(T,X)
+
+  plt.xlabel('Time (minutes)')
+  plt.ylabel('gdw')
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[15]:
+: Text(0,0.5,u'gdw')
+[[file:./obipy-resources/biomass-1e-1.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+len(VarDef.keys())
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[10]:
+: 59
 :END:
