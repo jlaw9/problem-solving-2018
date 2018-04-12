@@ -11,7 +11,7 @@ import copy
 
 #+RESULTS:
 :RESULTS:
-# Out[1]:
+# Out[40]:
 :END:
 ** File Paths for Media spec and FBA model
 #+BEGIN_SRC ipython :session :exports both :results raw drawer
@@ -41,7 +41,7 @@ def cleanupname(name):
 Initialize dictionaries for defining the ODE variables for a 
 single species
 """
-
+`
 VarDef = dict()
 ParDef_base = dict()
 ICS_base = dict()
@@ -81,7 +81,7 @@ for k in all_exchanges:
 
 ParDef_base['mu'] = solution.objective_value/60.0
 VarDef['X'] =  'mu * X'
-ICS_base['X'] = 1e-3
+ICS_base['X'] = 1e-1
 for r in all_exchanges:
     if r.id in media_derived_components.keys():
         ParDef_base[r.id + '_influx'] = media_derived_components[r.id]
