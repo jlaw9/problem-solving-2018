@@ -1,20 +1,497 @@
-* Defining Dynamic FBA model for a single species
-** Import headers
-#+BEGIN_SRC ipython :session :exports both :results raw drawer
+* Legacy                                                           :noexport:
+** Defining Dynamic FBA model for a single species
+*** Import headers
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+ %matplotlib inline
+ import cobra
+ import PyDSTool as dst
+ import pandas as pd
+ import matplotlib.pyplot as plt
+ import copy
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[1]:
+ :END:
+*** File Paths for Media spec and FBA model
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer 
+ model = cobra.io.read_sbml_model('./data/Bacteroides_sp_1_1_14.xml')
+ mediaFluxes = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[3]:
+ :END:
+*** Extract exchange reactions into variable definition and ics dictionary
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+   def cleanupname(name):
+       """
+       The reaction names in the model files 
+       don't have brackets or parentheses. I replaced
+       those found in the mediaFluxes file.
+       """
+       name = name.replace('[', '_LPAREN_')
+       name = name.replace(']', '_RPAREN_')
+       name = name.replace('(', '_LPAREN_')
+       name = name.replace(')', '_RPAREN_')
+       return name
+
+   """
+   Initialize dictionaries for defining the ODE variables for a 
+   single species
+   """
+   VarDef = dict()
+   ParDef_base = dict()
+   ICS_base = dict()
+
+   solution = model.optimize() # Get fluxes
+   all_exchanges = model.exchanges
+   media_derived_components = dict()
+
+   exchange_reaction_ids = [rxn.id for rxn in all_exchanges]
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[4]:
+ :END:
+
+**** Extract the reaction names and flux values into a dictionary.
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+ for i, row in mediaFluxes.iterrows():
+     N = cleanupname(row.Reaction)
+     if N in exchange_reaction_ids:
+         media_derived_components[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[51]:
+ :END:
+
+**** Get the outfluxes
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+ out_fluxes = []
+ for k in all_exchanges:
+     if k.reversibility and k.id not in media_derived_components.keys():
+         out_fluxes.append(k.id)
+
+ ParDef_base['mu'] = solution.objective_value/60.0
+ VarDef['X'] =  'mu * X'
+ ICS_base['X'] = 1e-1
+ for r in all_exchanges:
+     if r.id in media_derived_components.keys():
+         ParDef_base[r.id + '_influx'] = media_derived_components[r.id]
+         ParDef_base[r.id + '_consumption'] = solution.fluxes[r.id]
+         ICS_base[r.id] = media_derived_components[r.id]
+         VarDef[r.id] = r.id + '_influx + ' + r.id + '_consumption' + ' * X'
+     if r.id in out_fluxes:
+         ParDef_base[r.id + '_outflux'] = solution.fluxes[r.id] 
+         VarDef[r.id] = r.id + '_outflux * X'
+         ICS_base[r.id] = 0.0
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[52]:
+ :END:
+
+*** Define PyDSTool Model
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+   TSPAN = 5
+
+   ParDef = copy.deepcopy(ParDef_base)
+   ICS = copy.deepcopy(ICS_base)
+   def simulateModel(ModelDS, ParDef, ICS, TSPAN, tstart):
+       ModelDS.set(ics=ICS ,pars=ParDef,tdata=[tstart, tstart + TSPAN])
+       P = ModelDS.compute('test').sample(dt=0.1)
+       return(P)
+   ParDef = copy.deepcopy(ParDef_base)
+   ICS = copy.deepcopy(ICS_base)
+   ModelDef =dst.args(name='Bacteroides',
+                     varspecs=VarDef,
+                     pars=ParDef,
+                     ics=ICS,
+                     )
+
+   ModelDS = dst.Vode_ODEsystem(ModelDef)
+
+   P = simulateModel(ModelDS, ParDef, ICS,TSPAN, 0.0)
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[53]:
+ :END:
+
+*** Create Upperlimit
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+   AllPoints = []
+   AllPoints.append(P)
+   OriginalLB = {}
+   model_copy = copy.deepcopy(model)
+   T0=TSPAN
+
+   for r in model_copy.reactions:
+       if r in model_copy.exchanges:
+           OriginalLB[r.id] = r.lower_bound
+
+   for i in range(0, 10):
+       print(T0)
+       solution = model_copy.optimize()
+       all_exchanges = model_copy.exchanges
+       for r in all_exchanges:
+           if r.id in media_derived_components.keys():
+               model_copy.reactions.get_by_id(r.id).lower_bound = OriginalLB[r.id]*P[r.id][-1]/(0.0005+P[r.id][-1])
+               if r.id == 'EX_glu_L_LPAREN_e_RPAREN_':
+                   print(r.id + ': ' +str(OriginalLB[r.id]) + ' -> ' + str(model_copy.reactions.get_by_id(r.id).lower_bound))
+       solution = model_copy.optimize()
+    #   print('mu= ' +str(solution.objective_value))
+       ParDef['mu'] = solution.objective_value/60.0
+       ICS['X'] = P['X'][-1]
+       for r in all_exchanges:
+           if r.id in media_derived_components.keys():
+                  if P[r.id][-1] < 0.0:
+                      ICS[r.id] = 0.0
+                  else:
+    
+                      ParDef[r.id + '_influx'] = media_derived_components[r.id]
+                      ParDef[r.id + '_consumption'] = solution.fluxes[r.id]
+                      ICS[r.id] = P[r.id][-1]
+           if r.id in out_fluxes:
+               ParDef[r.id + '_outflux'] = solution.fluxes[r.id] 
+               ICS[r.id] = P[r.id][-1] # 0.0
+       del P
+       P = simulateModel(ModelDS, ParDef, ICS,TSPAN, T0)
+   #    print('EX_glu_L_LPAREN_e_RPAREN_' + str(P['EX_glu_L_LPAREN_e_RPAREN_'][-1]))
+       T0 += TSPAN
+
+       AllPoints.append(P)
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[54]:
+ :END:
+
+
+
+*** Results
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/metabolite-traj-1e-3.png
+    T=[]
+    X=[]
+   for v in VarDef.keys():
+           for P in AllPoints:
+                   if 'h2o' not in v :
+                           T = P['t']
+                           X = P[v]
+                           plt.plot(T,X)
+                   # T = P['t']
+                   # X = P['X']
+                   # plt.plot(T,X)
+
+   plt.xlabel('Time (minutes)')
+   plt.ylabel('mmol')
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[55]:
+ : Text(0,0.5,u'mmol')
+ [[file:./obipy-resources/metabolite-traj-1e-3.png]]
+ :END:
+
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/biomass-1e-1.png
+    T=[]
+    X=[]
+   for v in VarDef.keys():
+           for P in AllPoints:
+
+                   T = P['t']
+                   X = P['X']
+                   plt.plot(T,X)
+
+   plt.xlabel('Time (minutes)')
+   plt.ylabel('gdw')
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[56]:
+ : Text(0,0.5,u'gdw')
+ [[file:./obipy-resources/biomass-1e-1.png]]
+ :END:
+
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ len(VarDef.keys())
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[10]:
+ : 59
+ :END:
+** Defining Dynamic FBA model for multiple species
+ <2018-04-12 Thu>
+*** Import headers
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+ %matplotlib inline
+ import cobra
+ import PyDSTool as dst
+ import pandas as pd
+ import matplotlib.pyplot as plt
+ import copy
+ import sys
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[40]:
+ :END:
+*** File Paths for Media spec and FBA model
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer 
+ PATH = '/home/cerevisaj/Documents/VT/Problem-Solving/problem-solving-2018/dfba'
+ model = cobra.io.read_sbml_model(PATH + '/data/Bacteroides_sp_1_1_14.xml')
+ mediaFluxes = pd.read_csv(PATH + '/data/VMH_HighFiber.tsv', sep='\t')
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[44]:
+ :END:
+*** Extract exchange reactions into variable definition and ics dictionary
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+   def cleanupname(name):
+       """
+       The reaction names in the model files 
+       don't have brackets or parentheses. I replaced
+       those found in the mediaFluxes file.
+       """
+       name = name.replace('[', '_LPAREN_')
+       name = name.replace(']', '_RPAREN_')
+       name = name.replace('(', '_LPAREN_')
+       name = name.replace(')', '_RPAREN_')
+       return name
+
+   """
+   Initialize dictionaries for defining the ODE variables for a 
+   single species
+   """
+   VarDef = dict()
+   ParDef_base = dict()
+   ICS_base = dict()
+
+   solution = model.optimize() # Get fluxes
+   all_exchanges = model.exchanges
+   media_derived_components = dict()
+
+   exchange_reaction_ids = [rxn.id for rxn in all_exchanges]
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[50]:
+ :END:
+
+**** Extract the reaction names and flux values into a dictionary.
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+ for i, row in mediaFluxes.iterrows():
+     N = cleanupname(row.Reaction)
+     if N in exchange_reaction_ids:
+         media_derived_components[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[51]:
+ :END:
+
+**** Get the outfluxes
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+ out_fluxes = []
+ for k in all_exchanges:
+     if k.reversibility and k.id not in media_derived_components.keys():
+         out_fluxes.append(k.id)
+
+ ParDef_base['mu'] = solution.objective_value/60.0
+ VarDef['X'] =  'mu * X'
+ ICS_base['X'] = 1e-1
+ for r in all_exchanges:
+     if r.id in media_derived_components.keys():
+         ParDef_base[r.id + '_influx'] = media_derived_components[r.id]
+         ParDef_base[r.id + '_consumption'] = solution.fluxes[r.id]
+         ICS_base[r.id] = media_derived_components[r.id]
+         VarDef[r.id] = r.id + '_influx + ' + r.id + '_consumption' + ' * X'
+     if r.id in out_fluxes:
+         ParDef_base[r.id + '_outflux'] = solution.fluxes[r.id] 
+         VarDef[r.id] = r.id + '_outflux * X'
+         ICS_base[r.id] = 0.0
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[52]:
+ :END:
+
+*** Define PyDSTool Model
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer
+   TSPAN = 5
+
+   ParDef = copy.deepcopy(ParDef_base)
+   ICS = copy.deepcopy(ICS_base)
+   def simulateModel(ModelDS, ParDef, ICS, TSPAN, tstart):
+       ModelDS.set(ics=ICS ,pars=ParDef,tdata=[tstart, tstart + TSPAN])
+       P = ModelDS.compute('test').sample(dt=0.1)
+       return(P)
+   ParDef = copy.deepcopy(ParDef_base)
+   ICS = copy.deepcopy(ICS_base)
+   ModelDef =dst.args(name='Bacteroides',
+                     varspecs=VarDef,
+                     pars=ParDef,
+                     ics=ICS,
+                     )
+
+   ModelDS = dst.Vode_ODEsystem(ModelDef)
+
+   P = simulateModel(ModelDS, ParDef, ICS,TSPAN, 0.0)
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[53]:
+ :END:
+
+*** Create Upperlimit
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+   AllPoints = []
+   AllPoints.append(P)
+   OriginalLB = {}
+   model_copy = copy.deepcopy(model)
+   T0=TSPAN
+
+   for r in model_copy.reactions:
+       if r in model_copy.exchanges:
+           OriginalLB[r.id] = r.lower_bound
+
+   for i in range(0, 10):
+       print(T0)
+       solution = model_copy.optimize()
+       all_exchanges = model_copy.exchanges
+       for r in all_exchanges:
+           if r.id in media_derived_components.keys():
+               model_copy.reactions.get_by_id(r.id).lower_bound = OriginalLB[r.id]*P[r.id][-1]/(0.0005+P[r.id][-1])
+               if r.id == 'EX_glu_L_LPAREN_e_RPAREN_':
+                   print(r.id + ': ' +str(OriginalLB[r.id]) + ' -> ' + str(model_copy.reactions.get_by_id(r.id).lower_bound))
+       solution = model_copy.optimize()
+    #   print('mu= ' +str(solution.objective_value))
+       ParDef['mu'] = solution.objective_value/60.0
+       ICS['X'] = P['X'][-1]
+       for r in all_exchanges:
+           if r.id in media_derived_components.keys():
+                  if P[r.id][-1] < 0.0:
+                      ICS[r.id] = 0.0
+                  else:
+    
+                      ParDef[r.id + '_influx'] = media_derived_components[r.id]
+                      ParDef[r.id + '_consumption'] = solution.fluxes[r.id]
+                      ICS[r.id] = P[r.id][-1]
+           if r.id in out_fluxes:
+               ParDef[r.id + '_outflux'] = solution.fluxes[r.id] 
+               ICS[r.id] = P[r.id][-1] # 0.0
+       del P
+       P = simulateModel(ModelDS, ParDef, ICS,TSPAN, T0)
+   #    print('EX_glu_L_LPAREN_e_RPAREN_' + str(P['EX_glu_L_LPAREN_e_RPAREN_'][-1]))
+       T0 += TSPAN
+
+       AllPoints.append(P)
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[54]:
+ :END:
+
+
+
+*** Results
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/metabolite-traj-1e-3.png
+    T=[]
+    X=[]
+   for v in VarDef.keys():
+           for P in AllPoints:
+                   if 'h2o' not in v :
+                           T = P['t']
+                           X = P[v]
+                           plt.plot(T,X)
+                   # T = P['t']
+                   # X = P['X']
+                   # plt.plot(T,X)
+
+   plt.xlabel('Time (minutes)')
+   plt.ylabel('mmol')
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[55]:
+ : Text(0,0.5,u'mmol')
+ [[file:./obipy-resources/metabolite-traj-1e-3.png]]
+ :END:
+
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/biomass-1e-1.png
+    T=[]
+    X=[]
+   for v in VarDef.keys():
+           for P in AllPoints:
+
+                   T = P['t']
+                   X = P['X']
+                   plt.plot(T,X)
+
+   plt.xlabel('Time (minutes)')
+   plt.ylabel('gdw')
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[56]:
+ : Text(0,0.5,u'gdw')
+ [[file:./obipy-resources/biomass-1e-1.png]]
+ :END:
+
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ len(VarDef.keys())
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[10]:
+ : 59
+ :END:
+* Current
+* Final Definition of Single Species model
+** Headers
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
 %matplotlib inline
 import cobra
 import PyDSTool as dst
 import pandas as pd
 import matplotlib.pyplot as plt
 import copy
-#+END_SRC
+import sys
+ #+END_SRC
 
-#+RESULTS:
-:RESULTS:
-# Out[40]:
-:END:
-** File Paths for Media spec and FBA model
-#+BEGIN_SRC ipython :session :exports both :results raw drawer
+ #+RESULTS:
+ :RESULTS:
+ # Out[1]:
+ :END:
+
+** Paths to data
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
 model = cobra.io.read_sbml_model('./data/Bacteroides_sp_1_1_14.xml')
 mediaFluxes = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
 #+END_SRC
@@ -23,7 +500,8 @@ mediaFluxes = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
 :RESULTS:
 # Out[2]:
 :END:
-** Extract exchange reactions into variable definition and ics dictionary
+
+** Read file
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
 def cleanupname(name):
     """
@@ -41,7 +519,7 @@ def cleanupname(name):
 Initialize dictionaries for defining the ODE variables for a 
 single species
 """
-`
+
 VarDef = dict()
 ParDef_base = dict()
 ICS_base = dict()
@@ -55,182 +533,291 @@ exchange_reaction_ids = [rxn.id for rxn in all_exchanges]
 
 #+RESULTS:
 :RESULTS:
-# Out[3]:
+# Out[11]:
 :END:
 
-*** Extract the reaction names and flux values into a dictionary.
-#+BEGIN_SRC ipython :session :exports both :results raw drawer
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+model.name
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[3]:
+: 'Bacteroides sp. 1_1_14'
+:END:
+
+** Extract reactions+names
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
 for i, row in mediaFluxes.iterrows():
     N = cleanupname(row.Reaction)
     if N in exchange_reaction_ids:
         media_derived_components[N] = row['Flux Value'] / (24.0*60.0) # Per minute
-
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[4]:
+# Out[12]:
 :END:
 
-*** Get the outfluxes
-#+BEGIN_SRC ipython :session :exports both :results raw drawer
-out_fluxes = []
-for k in all_exchanges:
-    if k.reversibility and k.id not in media_derived_components.keys():
-        out_fluxes.append(k.id)
+** Simulate
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
 
 ParDef_base['mu'] = solution.objective_value/60.0
 VarDef['X'] =  'mu * X'
 ICS_base['X'] = 1e-1
+
 for r in all_exchanges:
+    ParDef_base[r.id + '_Bact'] = solution.fluxes[r.id]
     if r.id in media_derived_components.keys():
         ParDef_base[r.id + '_influx'] = media_derived_components[r.id]
-        ParDef_base[r.id + '_consumption'] = solution.fluxes[r.id]
-        ICS_base[r.id] = media_derived_components[r.id]
-        VarDef[r.id] = r.id + '_influx + ' + r.id + '_consumption' + ' * X'
-    if r.id in out_fluxes:
-        ParDef_base[r.id + '_outflux'] = solution.fluxes[r.id] 
-        VarDef[r.id] = r.id + '_outflux * X'
-        ICS_base[r.id] = 0.0
+        VarDef[r.id] = r.id + '_influx +' + r.id + '_Bact' + ' * X'
+    else: 
+        VarDef[r.id] =  r.id + '_Bact' + ' * X'
+    ICS_base[r.id] = 1
+
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[5]:
+# Out[14]:
 :END:
 
-** Define PyDSTool Model
-#+BEGIN_SRC ipython :session :exports both :results raw drawer
-  TSPAN = 5
-
-  ParDef = copy.deepcopy(ParDef_base)
-  ICS = copy.deepcopy(ICS_base)
-  def simulateModel(ModelDS, ParDef, ICS, TSPAN, tstart):
-      ModelDS.set(ics=ICS ,pars=ParDef,tdata=[tstart, tstart + TSPAN])
-      P = ModelDS.compute('test').sample(dt=0.1)
-      return(P)
-  ParDef = copy.deepcopy(ParDef_base)
-  ICS = copy.deepcopy(ICS_base)
-  ModelDef =dst.args(name='Bacteroides',
-                    varspecs=VarDef,
-                    pars=ParDef,
-                    ics=ICS,
-                    )
-
-  ModelDS = dst.Vode_ODEsystem(ModelDef)
-
-  P = simulateModel(ModelDS, ParDef, ICS,TSPAN, 0.0)
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-# Out[6]:
-:END:
-
-** Create Upperlimit
+** Define Dynamical model
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-  AllPoints = []
-  AllPoints.append(P)
-  OriginalLB = {}
-  model_copy = copy.deepcopy(model)
-  T0=TSPAN
+TSPAN = 5
 
-  for r in model_copy.reactions:
-      if r in model_copy.exchanges:
-          OriginalLB[r.id] = r.lower_bound
+ParDef = copy.deepcopy(ParDef_base)
+ICS = copy.deepcopy(ICS_base)
+def simulateModel(ModelDS, ParDef, ICS, TSPAN, tstart):
+    ModelDS.set(ics=ICS ,pars=ParDef,tdata=[tstart, tstart + TSPAN])
+    P = ModelDS.compute('test').sample(dt=0.1)
+    return(P)
+ParDef = copy.deepcopy(ParDef_base)
+ICS = copy.deepcopy(ICS_base)
+ModelDef =dst.args(name='Bacteroides',
+                  varspecs=VarDef,
+                  pars=ParDef,
+                  ics=ICS,
+                  )
 
-  for i in range(0, 10):
-      print(T0)
-      solution = model_copy.optimize()
-      all_exchanges = model_copy.exchanges
-      for r in all_exchanges:
-          if r.id in media_derived_components.keys():
-              model_copy.reactions.get_by_id(r.id).lower_bound = OriginalLB[r.id]*P[r.id][-1]/(0.0005+P[r.id][-1])
-              if r.id == 'EX_glu_L_LPAREN_e_RPAREN_':
-                  print(r.id + ': ' +str(OriginalLB[r.id]) + ' -> ' + str(model_copy.reactions.get_by_id(r.id).lower_bound))
-      solution = model_copy.optimize()
-   #   print('mu= ' +str(solution.objective_value))
-      ParDef['mu'] = solution.objective_value/60.0
-      ICS['X'] = P['X'][-1]
-      for r in all_exchanges:
-          if r.id in media_derived_components.keys():
-                 if P[r.id][-1] < 0.0:
-                     ICS[r.id] = 0.0
-                 else:
-    
-                     ParDef[r.id + '_influx'] = media_derived_components[r.id]
-                     ParDef[r.id + '_consumption'] = solution.fluxes[r.id]
-                     ICS[r.id] = P[r.id][-1]
-          if r.id in out_fluxes:
-              ParDef[r.id + '_outflux'] = solution.fluxes[r.id] 
-              ICS[r.id] = P[r.id][-1] # 0.0
-      del P
-      P = simulateModel(ModelDS, ParDef, ICS,TSPAN, T0)
-  #    print('EX_glu_L_LPAREN_e_RPAREN_' + str(P['EX_glu_L_LPAREN_e_RPAREN_'][-1]))
-      T0 += TSPAN
-
-      AllPoints.append(P)
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-# Out[8]:
-:END:
-
-
-
-** Results
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/metabolite-traj-1e-3.png
-   T=[]
-   X=[]
-  for v in VarDef.keys():
-          for P in AllPoints:
-                  if 'h2o' not in v :
-                          T = P['t']
-                          X = P[v]
-                          plt.plot(T,X)
-                  # T = P['t']
-                  # X = P['X']
-                  # plt.plot(T,X)
-
-  plt.xlabel('Time (minutes)')
-  plt.ylabel('mmol')
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-# Out[9]:
-: Text(0,0.5,u'mmol')
-[[file:./obipy-resources/metabolite-traj-1e-3.png]]
-:END:
-
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :ipyfile ./obipy-resources/biomass-1e-1.png
-   T=[]
-   X=[]
-  for v in VarDef.keys():
-          for P in AllPoints:
-
-                  T = P['t']
-                  X = P['X']
-                  plt.plot(T,X)
-
-  plt.xlabel('Time (minutes)')
-  plt.ylabel('gdw')
+ModelDS = dst.Vode_ODEsystem(ModelDef)
+P= {}
+for k in ICS_base.keys():
+    P[k] = [ICS_base[k]]
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
 # Out[15]:
-: Text(0,0.5,u'gdw')
-[[file:./obipy-resources/biomass-1e-1.png]]
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-len(VarDef.keys())
+  AllPoints = []
+
+  OriginalLB = {}
+  model_copy = copy.deepcopy(model)
+  T0=0
+
+  for r in model_copy.reactions:
+      if r in model_copy.exchanges:
+          OriginalLB[r.id] = r.lower_bound
+
+  for i in range(0, 2):
+      print(T0)
+      all_exchanges = model_copy.exchanges
+      for r in all_exchanges:
+          model_copy.reactions.get_by_id(r.id).lower_bound = OriginalLB[r.id]*P[r.id][-1]/(0.0005+P[r.id][-1])
+
+          # if r.id == 'EX_adn_L_LPAREN_e_RPAREN_':
+          #     print(r.id + ': ' +str(OriginalLB[r.id]) + ' -> ' + str(model_copy.reactions.get_by_id(r.id).lower_bound))
+      solution = model_copy.optimize()
+      ParDef['mu'] = solution.objective_value/60.0
+      ICS['X'] = P['X'][-1]
+      for r in all_exchanges:
+          ParDef_base[r.id + '_Bact'] = solution.fluxes[r.id]
+          ICS[r.id] = P[r.id][-1]
+      P = simulateModel(ModelDS, ParDef, ICS,TSPAN, T0)
+      TSTOP = T0+TSPAN
+      AllNegativeValues = {}
+      for variable in VarDef.keys():
+
+          if P[variable][-1] < 0.0:
+              AllNegativeValues = {key:P['t'][P[variable].index(value)] for value in P[variable] if P[variable] < 0.0 }
+              # for p in P[variable]:
+              #     if p < 0.0:
+              #         AllNegativeValues[variable] = P['t'][index]
+              #         break
+              #     index += 1
+              # for i in range(0, len(P[variable])):
+              #     if P[variable][i] < 0.0:
+              #         if P['t'][i] < TSTOP:
+              #             TSTOP = P['t'][i]
+              #         break
+      TSTOP = min(AllNegativeValues, key=AllNegativeValues.get)
+      print(AllNegativeValues[TSTOP])
+      P = simulateModel(ModelDS, ParDef, ICS,TSPAN, T0)
+      T0 += TSPAN
+      AllPoints.append(P)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[10]:
-: 59
+0 - 2f7330d7-ac38-4825-b25e-1cf0a59a9e12
 :END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+AllNegativeValues
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[30]:
+: {}
+:END:
+
+*** Define utility functions
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  def recomputeLowerBounds(model, PrevSteadyState, OriginalLB):
+      all_exchanges = model_copy.exchanges
+      for r in all_exchanges:
+          model.reactions.get_by_id(r.id).lower_bound = OriginalLB[r.id]*PrevSteadyState[r.id]/(0.0005+PrevSteadyState[r.id])
+
+
+  def get_ss(model):
+      """
+      Takes as input a PyDSTool Model object,
+      Returns the SS values
+      """
+      Points=simulateModel(model)
+      SSPoints={}
+      for k in Points.keys():
+          SSPoints[k]=Points[k][-1]
+      return(SSPoints)
+
+#+END_SRC
+** Plot Results
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+T=[]
+X=[]
+for v in VarDef.keys():
+        for P in AllPoints:
+                if 'h2o' not in v :
+                       # print(v)
+                        T = P['t']
+                        X = P[v]
+                        plt.plot(T,X)
+#                 T = P['t']
+#                 X = P['X']
+#                 plt.plot(T,X)
+
+plt.xlabel('Time (minutes)')
+plt.ylabel('gdw')
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[8]:
+: Text(0,0.5,u'gdw')
+[[file:./obipy-resources/2300s0Y.png]]
+:END:
+* Cleaned up version
+** Headers
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+%matplotlib inline
+import cobra
+import PyDSTool as dst
+import pandas as pd
+import matplotlib.pyplot as plt
+import copy
+import sys
+ #+END_SRC
+
+ #+RESULTS:
+ :RESULTS:
+ # Out[1]:
+ :END:
+** Utility Functions
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  # Functions for initialization
+  def speciesSpecificFluxes(SpeciesModel, MediaDict):
+      all_exchanges = model.exchanges
+      mediaDerivedComponents = dict()
+
+      exchange_reaction_ids = [rxn.id for rxn in all_exchanges]
+      for i, row in mediaFluxes.iterrows():
+          N = cleanupname(row.Reaction)
+          if N in exchange_reaction_ids:
+              mediaDerivedDomponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+
+      return mediaDerivedComponents
+
+  def defineDFBAModel(SpMediaDerivedComponents, SpeciesModel):
+      all_exchanges = SpeciesModel.exchanges
+      solution = SpeciesModel.optimize()
+      Name = SpeciesModel.name.split(' ')[0]
+
+      ParDef['mu'] = 0.0
+      VarDef[Name] =  'mu *' + Name
+      ICS[Name] = 1e-1
+
+      for r in all_exchanges:
+          ParDef[r.id + '_' + Name] = solution.fluxes[r.id]
+          if r.id in SpMediaDerivedDomponents.keys():
+              ParDef[r.id + '_influx'] = SpMediaDerivedDomponents[r.id]
+              VarDef[r.id] = r.id + '_influx +' + r.id + '_' + Name + ' * X'
+          else: 
+              VarDef[r.id] =  r.id + '_' + Name + ' * X'
+          ICS[r.id] = 1
+      ModelDef = dst.args(name=Name,
+                          pars=ParDef,
+                          varspecs=VarDef,
+                          ics=ICS)
+      ModelDS = dst.Vode_ODEsystem(ModelDef)
+      return ModelDS
+
+  # Functions for model updates
+
+  def recomputeLowerBounds(SpeciesFBAModel, PrevSteadyState, OriginalLB):
+      for r in SpeciesFBAModel.exchanges:
+          SpeciesFBAModel.reactions.get_by_id(r.id) \
+                         .lower_bound = \
+                                        OriginalLB[r.id] \
+                                        ,* PrevSteadyState[r.id]/(0.0005+PrevSteadyState[r.id])
+      return SpeciesFBAModel
+
+  def updateFluxParameters(SpeciesFBAModel, SpeciesDynamicModel, PrevSteadyState):
+      solution = SpeciesFBAModel.optimize()
+      Name = SpeciesFBAModel.name.split(' ')[0]
+      ParDef['mu'] = solution.objective_value/60.0
+      ICS[Name] = PrevSteadyState[Name]
+      for r in all_exchanges:
+          ParDef_base[r.id + '_' + Name] = solution.fluxes[r.id]
+          ICS[r.id] = PrevSteadyState[r.id]
+
+      SpeciesDynamicModel.set(pars=ParDef, ics=ICS)
+      return SpeciesDynamicModel
+
+  def update(SpeciesFBAModel, SpeciesDynamicModel, PrevSteadyState):
+      updatedFBAModel = recomputeLowerBounds(SpeciesFBAModel,
+                                             PreviousSteadyState,
+                                             SpeciesOriginalLB)
+
+      updatedDynamicModel = updateFluxParameters(updateFBAModel,
+                                                 SpeciesDynamicModel,
+                                                 PrevSteadyState)
+      P = simulateModel(updatedDynamicalModel)
+      return P
+
+  def get_ss(DynamicModel):
+        """
+        Takes as input a PyDSTool Model object,
+        Returns the SS values
+        """
+        Points=simulateModel(DynamicModel)
+        SSPoints={}
+        for k in Points.keys():
+            SSPoints[k]=Points[k][-1]
+        return(SSPoints)
+
+#+END_SRC
