@@ -880,7 +880,7 @@ import pdb
 
 #+RESULTS:
 :RESULTS:
-# Out[24]:
+# Out[29]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -916,28 +916,25 @@ import pdb
 
 #+RESULTS:
 :RESULTS:
-# Out[25]:
+# Out[30]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-T=[]
-X=[]
-for sp in SpeciesDict.keys():
-        for P in AllPoints:
-#            if SpeciesDict[sp]['Name'] != 'Escherichia':
-            plt.plot(P['t'], P[SpeciesDict[sp]['Name']])
-#                 T = P['t']
-#                 X = P['X']
-#                 plt.plot(T,X)
-
-plt.xlabel('Time (minutes)')
-plt.ylabel('gdw')
+    T=[]
+    X=[]
+    for sp in SpeciesDict.keys():
+            for P in AllPoints:
+  #                  for k in P.keys():
+                plt.plot(P['t'], P['EX_no2_LPAREN_e_RPAREN_'])
+    plt.xlabel('Time (minutes)')
+    plt.ylim([0,001])
+    plt.ylabel('gdw')
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[26]:
+# Out[36]:
 : Text(0,0.5,u'gdw')
-[[file:./obipy-resources/2244j6f.png]]
+[[file:./obipy-resources/22448iB.png]]
 :END:
 
