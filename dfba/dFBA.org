@@ -854,58 +854,56 @@ import pdb
 
 #+RESULTS:
 :RESULTS:
-# Out[3]:
+# Out[7]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
   AllPoints = []
   P = InitialValues
   T0=0
-  Tfinal= 800
+  TEND = 800
   TSPAN = 100
-  NegativeCrossing = []
-  Lstop=len(P['EX_h2o_LPAREN_e_RPAREN_'])
+  IndexStop = len(P['EX_h2o_LPAREN_e_RPAREN_'])
   i=0
   MaxIter=50
 
-  while T0 < Tfinal and i < MaxIter:
+  while T0 < TEND and i < MaxIter:
       i+=1
       print(T0)
       SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P))
-      if T0+TSPAN > Tfinal:
-          TSPAN = Tfinal-T0
-      ModelDS.set(tdata=[T0, T0+TSPAN])
-      P = ModelDS.compute('test').sample() #simulateModel(ModelDS, ParDef, ICS,TSPAN, T0)
-      TSTOP = T0+TSPAN
+
+      if T0+TSPAN > TEND:
+          TSPAN = TEND - T0
+      ModelDS.set(tdata=[T0, T0 + TSPAN])
+      P = ModelDS.compute('test').sample() 
       AllNegativeValues = {}
-      Lstop=len( P['EX_h2o_LPAREN_e_RPAREN_'] )-1
-      NegativeCrossing = []
+
+      # Initialize
+      IndexStop=len( P['EX_h2o_LPAREN_e_RPAREN_'] )-1
 
       for variable in P.keys():
-          if P[variable][-1] < 0.0:
-              val = next((index for index,value in enumerate(P[variable]) if value < 0), None)
-              if val < Lstop:
-                          TSTOP = P['t'][val]
-                          Lstop = val
+          if P[variable][-1] < 0.0: # checking only final Tpoint, b/c monotonic
+              varIndex = next((index for index,value in enumerate(P[variable]) if value < 0), None)
+              if varIndex < IndexStop:
+                  # Update the index for the first negative crossing
+                  IndexStop = varIndex
 
-      if Lstop < len( P['EX_h2o_LPAREN_e_RPAREN_'] )-1:
-          B={}
+      if IndexStop < len( P['EX_h2o_LPAREN_e_RPAREN_'] )-1 and IndexStop > 0:
+          P_tilFirstNeg={}
           for variable in P.keys():
-              B[variable]=P[variable][:Lstop-1]
-              if P[variable][Lstop]<0:
-                  B[variable][-1]=0
-                  NegativeCrossing.append(variable)
-          B['t']=P['t'][:Lstop-1]
-          P=B
-      TSTOP = P['t'][-1]    
-      T0 = TSTOP
+              P_tilFirstNeg[variable]=P[variable][:IndexStop-1]
+              if P[variable][IndexStop]<0 and len(P[variable][IndexStop]) > 0:
+                  P_tilFirstNeg[variable][-1]=0
+          P_tilFirstNeg['t']=P['t'][:IndexStop-1]
+          P=P_tilFirstNeg
+      T0 = P['t'][-1]
 
       AllPoints.append(P)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - a0ef6338-8255-4917-9fb7-7dc70a90538d
+0 - d126b13a-ee6d-4e3e-915a-f210d0c1fcdf
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -913,6 +911,7 @@ T=[]
 X=[]
 for sp in SpeciesDict.keys():
         for P in AllPoints:
+#            if SpeciesDict[sp]['Name'] != 'Escherichia':
             plt.plot(P['t'], P[SpeciesDict[sp]['Name']])
 #                 T = P['t']
 #                 X = P['X']
@@ -924,8 +923,8 @@ plt.ylabel('gdw')
 
 #+RESULTS:
 :RESULTS:
-# Out[5]:
+# Out[13]:
 : Text(0,0.5,u'gdw')
-[[file:./obipy-resources/2290-7Z.png]]
+[[file:./obipy-resources/2198Tki.png]]
 :END:
 
