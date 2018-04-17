@@ -799,7 +799,7 @@ import pdb
                 SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid) \
                                                        .lower_bound = \
                                                                       SpeciesDict[species]['OriginalLB'][rid] \
-                                                                      * PrevSteadyState[rid]/(0.0005+PrevSteadyState[rid])
+                                                                      ,* PrevSteadyState[rid]/(0.0005+PrevSteadyState[rid])
         return SpeciesDict
 
     def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
@@ -830,14 +830,17 @@ import pdb
     def get_ss(PointSet):
           SSPoints={}
           for k in PointSet.keys():
-              SSPoints[k]=PointSet[k][-1]
+              if len(PointSet[k]) == 0:
+                  SSPoints[k]= 0 #PointSet[k][-1]
+              else:
+                  SSPoints[k]=PointSet[k][-1]
           return(SSPoints)
 
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[2]:
+# Out[7]:
 :END:
 
 ** Test:
@@ -854,7 +857,7 @@ import pdb
 
 #+RESULTS:
 :RESULTS:
-# Out[7]:
+# Out[15]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -866,14 +869,15 @@ import pdb
   IndexStop = len(P['EX_h2o_LPAREN_e_RPAREN_'])
   i=0
   MaxIter=50
-
-  while T0 < TEND and i < MaxIter:
+  TERMINATE = False
+  while T0 < TEND and i < MaxIter and not TERMINATE:
       i+=1
       print(T0)
       SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P))
 
       if T0+TSPAN > TEND:
           TSPAN = TEND - T0
+
       ModelDS.set(tdata=[T0, T0 + TSPAN])
       P = ModelDS.compute('test').sample() 
       AllNegativeValues = {}
@@ -892,18 +896,25 @@ import pdb
           P_tilFirstNeg={}
           for variable in P.keys():
               P_tilFirstNeg[variable]=P[variable][:IndexStop-1]
-              if P[variable][IndexStop]<0 and len(P[variable][IndexStop]) > 0:
-                  P_tilFirstNeg[variable][-1]=0
-          P_tilFirstNeg['t']=P['t'][:IndexStop-1]
-          P=P_tilFirstNeg
-      T0 = P['t'][-1]
+              if P[variable][IndexStop] < 0:
+                  if len(P_tilFirstNeg[variable]) > 1:
+                      P_tilFirstNeg[variable][-1] = 0
+                  else:
+                      P_tilFirstNeg[variable] = [0.0]
+
+          P_tilFirstNeg['t'] = P['t'][:IndexStop-1]
+          P = P_tilFirstNeg
+      if len(P['t']) != 0:
+          T0 = P['t'][-1]
+      else:
+          TERMINATE = True
 
       AllPoints.append(P)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - d126b13a-ee6d-4e3e-915a-f210d0c1fcdf
+# Out[16]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -923,8 +934,8 @@ plt.ylabel('gdw')
 
 #+RESULTS:
 :RESULTS:
-# Out[13]:
+# Out[17]:
 : Text(0,0.5,u'gdw')
-[[file:./obipy-resources/2198Tki.png]]
+[[file:./obipy-resources/2244WwZ.png]]
 :END:
 
