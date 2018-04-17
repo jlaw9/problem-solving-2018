@@ -720,368 +720,221 @@ import pdb
 
  #+RESULTS:
  :RESULTS:
- # Out[54]:
+ # Out[1]:
  :END:
 
 ** Utility Functions
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-    # Functions for initialization
-    def cleanupname(name):
-        """
-        The reaction names in the model files 
-        don't have brackets or parentheses. I replaced
-        those found in the mediaFluxes file.
-        """
-        name = name.replace('[', '_LPAREN_')
-        name = name.replace(']', '_RPAREN_')
-        name = name.replace('(', '_LPAREN_')
-        name = name.replace(')', '_RPAREN_')
-        return name
+  # Functions for initialization
+  def cleanupname(name):
+      """
+       The reaction names in the model files 
+       don't have brackets or parentheses. I replaced
+       those found in the mediaFluxes file.
+       """
+      name = name.replace('[', '_LPAREN_')
+      name = name.replace(']', '_RPAREN_')
+      name = name.replace('(', '_LPAREN_')
+      name = name.replace(')', '_RPAREN_')
+      return name
 
+  def defineDFBAModel(SpeciesDict , MediaDF):
+      print("Defining Dynamical model... \n")
+      ParDef = dict()
+      VarDef = dict()
+      ICS = dict()
+      exchange_list = []
+      mediaDerivedComponents = {}
+      for i, row in MediaDF.iterrows():
+          N = cleanupname(row.Reaction)
+          mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
 
-    def speciesSpecificInFluxes(SpeciesModel, MediaDF):
-        all_exchanges = SpeciesModel.exchanges
-        mediaDerivedComponents = dict()
+      for species in SpeciesDict.keys():
+          SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
+          SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
+          SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
+          SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0]
+          exchange_list += SpeciesDict[species]['SpeciesModel'].exchanges
+          Name=SpeciesDict[species]['Name']
+          ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value
+          VarDef[Name] =  'mu_' + Name + ' * ' + Name ### Biomass
+          ICS[Name] = 1e-1
 
-        exchange_reaction_ids = [rxn.id for rxn in all_exchanges]
-        for i, row in MediaDF.iterrows():
-            N = cleanupname(row.Reaction)
-            if N in exchange_reaction_ids:
-                mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+      all_exchanges = set()
 
-        return(mediaDerivedComponents)
+      for ex in exchange_list:
+          all_exchanges.add(ex.id)
+          #     all_exchanges = list(set(exchange_list))
 
-    def defineDFBAModel(SpeciesDict , MediaDF):
-        print("Defining Dynamical model... \n")
-        ParDef = dict()
-        VarDef = dict()
-        ICS = dict()
-        exchange_list = []
-        mediaDerivedComponents = {}
-        for i, row in MediaDF.iterrows():
-            N = cleanupname(row.Reaction)
-            mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+      for rid in all_exchanges:
+          VarDef[rid] = '0'
+          ICS[rid] = 10
 
-        for species in SpeciesDict.keys():
-            SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
-            # SpeciesDict[species]['SpMediaDerivedComponents'] = speciesSpecificInFluxes(SpeciesDict[species]['SpeciesModel'], MediaDF)
-            SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
-            SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0]
-            exchange_list += SpeciesDict[species]['SpeciesModel'].exchanges
-            Name=SpeciesDict[species]['Name']
-            ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value
-            VarDef[Name] =  'mu_' + Name + ' * ' + Name ### Biomass
-            ICS[Name] = 1e-1
-          
-        all_exchanges = set()
+          if rid in mediaDerivedComponents.keys():
+              ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
+              VarDef[rid] += ' + ' +  rid + '_influx'
 
-        for ex in exchange_list:
-            all_exchanges.add(ex.id)
-   #     all_exchanges = list(set(exchange_list))
+          for species in SpeciesDict.keys():
+              # print(SpeciesDict[species]['Name'])
+              if 'h2o' in rid:
+                  print(species, rid)
+              if rid in [species_r.id for species_r in SpeciesDict[species]['SpeciesModel'].exchanges]:
+                  Name = SpeciesDict[species]['Name']
+                  ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
+                  VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
+
+      ModelDef = dst.args(name=Name,
+                      pars=ParDef,
+                          varspecs=VarDef,
+                          ics=ICS)
+      ModelDS = dst.Vode_ODEsystem(ModelDef)
+      print("Done!")
+      return (SpeciesDict, ModelDef, ModelDS)
+
+  # Functions for model updates
+
+  def recomputeLowerBounds(SpeciesDict, PrevSteadyState):
+      for species in SpeciesDict.keys():
+          for rid in [rxn.id for rxn in SpeciesDict[species]['SpeciesModel'].exchanges]:
+              SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid) \
+                                                     .lower_bound = \
+                                                                    SpeciesDict[species]['OriginalLB'][rid] \
+                                                                    ,* PrevSteadyState[rid]/(0.0005+PrevSteadyState[rid])
+      return SpeciesDict
+
+  def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
+      ParDef = {}
+      ICS = {}
+      for species in SpeciesDict:
+          solution = SpeciesDict[species]['SpeciesModel'].optimize()
+          Name = SpeciesDict[species]['Name']
+          ParDef['mu_' + Name] = solution.objective_value/60.0
+          ICS[Name] = PrevSteadyState[Name]
+          exchanges = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
+          for rid in exchanges:
+              ParDef[rid + '_' + Name] = solution.fluxes[rid]/60.0
+              ICS[rid] = PrevSteadyState[rid]
+      ModelDS.set(pars=ParDef, ics=ICS)
+      return ModelDS
+
+  def update(SpeciesDict, ModelDS, PrevSteadyState):
+      UpdatedSpeciesDict = recomputeLowerBounds(SpeciesDict,
+                                                PrevSteadyState)
+
+      UpdatedDynamicModel = updateFluxParameters(UpdatedSpeciesDict,
+                                                 ModelDS,
+                                                 PrevSteadyState)
+      # P = simulateModel(updatedDynamicalModel)
+      return(UpdatedSpeciesDict, UpdatedDynamicModel)
+
+  def get_ss(PointSet):
+        SSPoints={}
+        for k in PointSet.keys():
+            if len(PointSet[k]) == 0:
+                SSPoints[k]= 0 #PointSet[k][-1]
+            else:
+                SSPoints[k]=PointSet[k][-1]
+        return(SSPoints)
+
+  def checkNegativeMetabolites(PointSet):
+      IndexStop = len(PointSet['EX_h2o_LPAREN_e_RPAREN_']) - 1
     
-        for rid in all_exchanges:
-            VarDef[rid] = '0'
-            ICS[rid] = 10
+      for variable in PointSet.keys():
+          if PointSet[variable][-1] < 0.0: # checking only final Tpoint, b/c monotonic
+              varIndex = next((index for index,value in enumerate(PointSet[variable]) if value < 0), None)
+              if varIndex < IndexStop:
+                  # Update the index for the first negative crossing
+                  IndexStop = varIndex
 
-            if rid in mediaDerivedComponents.keys():
-                ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
-                VarDef[rid] += ' + ' +  rid + '_influx'
-
-
-            for species in SpeciesDict.keys():
-  #              print(SpeciesDict[species]['Name'])
-                if 'h2o' in rid:
-                    print(species, rid)
-                if rid in [species_r.id for species_r in SpeciesDict[species]['SpeciesModel'].exchanges]:
-                    Name = SpeciesDict[species]['Name']
-                    ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
-                    VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
-
-        ModelDef = dst.args(name=Name,
-                        pars=ParDef,
-                            varspecs=VarDef,
-                            ics=ICS)
-        ModelDS = dst.Vode_ODEsystem(ModelDef)
-        print("Done!")
-        return (SpeciesDict, ModelDef, ModelDS)
-
-    # Functions for model updates
-
-    def recomputeLowerBounds(SpeciesFBAModel, PrevSteadyState, OriginalLB):
-        for r in SpeciesFBAModel.exchanges:
-            SpeciesFBAModel.reactions.get_by_id(r.id) \
-                           .lower_bound = \
-                                          OriginalLB[r.id] \
-                                          ,* PrevSteadyState[r.id]/(0.0005+PrevSteadyState[r.id])
-        return SpeciesFBAModel
-
-    def updateFluxParameters(SpeciesFBAModel, SpeciesDynamicModel, PrevSteadyState):
-        solution = SpeciesFBAModel.optimize()
-        Name = SpeciesFBAModel.name.split(' ')[0]
-        ParDef['mu'] = solution.objective_value/60.0
-        ICS[Name] = PrevSteadyState[Name]
-        for r in all_exchanges:
-            ParDef[r.id + '_' + Name] = solution.fluxes[r.id]
-            ICS[r.id] = PrevSteadyState[r.id]
-
-        SpeciesDynamicModel.set(pars=ParDef, ics=ICS)
-        return SpeciesDynamicModel
-
-    def update(SpeciesFBAModel, SpeciesDynamicModel, PrevSteadyState):
-        updatedFBAModel = recomputeLowerBounds(SpeciesFBAModel,
-                                               PreviousSteadyState,
-                                               SpeciesOriginalLB)
-
-        updatedDynamicModel = updateFluxParameters(updateFBAModel,
-                                                   SpeciesDynamicModel,
-                                                   PrevSteadyState)
-        P = simulateModel(updatedDynamicalModel)
-        return P
-
-    def get_ss(DynamicModel):
-          """
-          Takes as input a PyDSTool Model object,
-          Returns the SS values
-          """
-          Points=simulateModel(DynamicModel)
-          SSPoints={}
-          for k in Points.keys():
-              SSPoints[k]=Points[k][-1]
-          return(SSPoints)
-
+      if IndexStop < len(PointSet['EX_h2o_LPAREN_e_RPAREN_']) - 1 and IndexStop > 0:
+          P_tilFirstNeg={}
+          for variable in PointSet.keys():
+              P_tilFirstNeg[variable]=P[variable][:IndexStop-1]
+              if PointSet[variable][IndexStop] < 0:
+                  if len(P_tilFirstNeg[variable]) > 1:
+                      P_tilFirstNeg[variable][-1] = 0
+                  else:
+                      P_tilFirstNeg[variable] = [0.0]
+                    
+          P_tilFirstNeg['t'] = PointSet['t'][:IndexStop-1]
+          PointSet = P_tilFirstNeg
+      return(PointSet)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[67]:
+# Out[23]:
 :END:
 
 ** Test:
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
   SpeciesDict = {'Sp1': {'File':'./data/Bacteroides_sp_1_1_14.xml'},
-                 'Sp2': {'File':'./data/Actinomyces_urogenitalis_DSM_15434.xml'}
+                 'Sp2': {'File':'./data/Actinomyces_urogenitalis_DSM_15434.xml'},
+                 'Sp3': {'File':'./data/Escherichia_coli_str_K_12_substr_MG1655.xml'}
   }
   MediaDF = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
 
   SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, MediaDF)
-  #VarDef = defineDFBAModel(SpeciesDict, MediaDF)
-  # print(VarDef)
+  InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[68]:
+# Out[29]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-Definition.varspecs
+  AllPoints = []
+  P = InitialValues
+  T0=0
+  TEND = 800
+  TSPAN = 100
+  IndexStop = len(P['EX_h2o_LPAREN_e_RPAREN_'])
+  i=0
+  MaxIter=50
+  TERMINATE = False
+  while T0 < TEND and i < MaxIter and not TERMINATE:
+      i+=1
+      print(T0)
+      SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P))
+
+      if T0+TSPAN > TEND:
+          TSPAN = TEND - T0
+
+      ModelDS.set(tdata=[T0, T0 + TSPAN])
+      P = ModelDS.compute('test').sample() 
+
+      # Initialize
+      P = checkNegativeMetabolites(P) 
+      if len(P['t']) != 0:
+          T0 = P['t'][-1]
+      else:
+          TERMINATE = True
+
+      AllPoints.append(P)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[61]:
-#+BEGIN_EXAMPLE
-  {'Actinomyces': 'mu_Actinomyces * Actinomyces',
-  'Bacteroides': 'mu_Bacteroides * Bacteroides',
-  'DM_5MTR': '0 + DM_5MTR_Actinomyces * Actinomyces',
-  'DM_dhptd_LPAREN_c_RPAREN_': '0 + DM_dhptd_LPAREN_c_RPAREN__Actinomyces * Actinomyces',
-  'DM_hcys_L_LSQBKT_c_RSQBKT_': '0 + DM_hcys_L_LSQBKT_c_RSQBKT__Actinomyces * Actinomyces',
-  'DM_pheme_LPAREN_c_RPAREN_': '0 + DM_pheme_LPAREN_c_RPAREN__Bacteroides * Bacteroides',
-  'EX_12dgr180_LPAREN_e_RPAREN_': '0 + EX_12dgr180_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_26dap_M_LPAREN_e_RPAREN_': '0 + EX_26dap_M_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_2dmmq8_LPAREN_e_RPAREN_': '0 + EX_2dmmq8_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_2obut_LPAREN_e_RPAREN_': '0 + EX_2obut_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_2obut_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_4abz_LPAREN_e_RPAREN_': '0 + EX_4abz_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_4hbz_LPAREN_e_RPAREN_': '0 + EX_4hbz_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_4hbz_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ac_LPAREN_e_RPAREN_': '0 + EX_ac_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_ac_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_acald_LPAREN_e_RPAREN_': '0 + EX_acald_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_acgam_LPAREN_e_RPAREN_': '0 + EX_acgam_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_acgam_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ade_LPAREN_e_RPAREN_': '0 + EX_ade_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_adn_LPAREN_e_RPAREN_': '0 + EX_adn_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_adpcbl_LPAREN_e_RPAREN_': '0 + EX_adpcbl_LPAREN_e_RPAREN__influx + EX_adpcbl_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_akg_LPAREN_e_RPAREN_': '0 + EX_akg_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ala_D_LPAREN_e_RPAREN_': '0 + EX_ala_D_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ala_L_LPAREN_e_RPAREN_': '0 + EX_ala_L_LPAREN_e_RPAREN__influx + EX_ala_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alaasp_LPAREN_e_RPAREN_': '0 + EX_alaasp_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alagln_LPAREN_e_RPAREN_': '0 + EX_alagln_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alaglu_LPAREN_e_RPAREN_': '0 + EX_alaglu_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alagly_LPAREN_e_RPAREN_': '0 + EX_alagly_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alahis_LPAREN_e_RPAREN_': '0 + EX_alahis_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alaleu_LPAREN_e_RPAREN_': '0 + EX_alaleu_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alathr_LPAREN_e_RPAREN_': '0 + EX_alathr_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_alltn_LPAREN_e_RPAREN_': '0 + EX_alltn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_arab_L_LPAREN_e_RPAREN_': '0 + EX_arab_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_arab_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_arabttr_LPAREN_e_RPAREN_': '0 + EX_arabttr_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_arabttr_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_arbt_LPAREN_e_RPAREN_': '0 + EX_arbt_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_arg_L_LPAREN_e_RPAREN_': '0 + EX_arg_L_LPAREN_e_RPAREN__influx + EX_arg_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_arg_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_arsenb_LPAREN_e_RPAREN_': '0 + EX_arsenb_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_asn_L_LPAREN_e_RPAREN_': '0 + EX_asn_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_asn_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_asp_L_LPAREN_e_RPAREN_': '0 + EX_asp_L_LPAREN_e_RPAREN__influx + EX_asp_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_biomass_LPAREN_e_RPAREN_': '0 + EX_biomass_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_biomass_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_btn_LPAREN_e_RPAREN_': '0 + EX_btn_LPAREN_e_RPAREN__influx + EX_btn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ca2_LPAREN_e_RPAREN_': '0 + EX_ca2_LPAREN_e_RPAREN__influx + EX_ca2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_ca2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_cbl1_LPAREN_e_RPAREN_': '0 + EX_cbl1_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_cbl2_LPAREN_e_RPAREN_': '0 + EX_cbl2_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_cd2_LPAREN_e_RPAREN_': '0 + EX_cd2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_cd2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_cgly_LPAREN_e_RPAREN_': '0 + EX_cgly_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_chtbs_LPAREN_e_RPAREN_': '0 + EX_chtbs_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_cit_LPAREN_e_RPAREN_': '0 + EX_cit_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_cl_LPAREN_e_RPAREN_': '0 + EX_cl_LPAREN_e_RPAREN__influx + EX_cl_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_cl_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_co2_LPAREN_e_RPAREN_': '0 + EX_co2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_co2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_cobalt2_LPAREN_e_RPAREN_': '0 + EX_cobalt2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_cobalt2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_cro4_LPAREN_e_RPAREN_': '0 + EX_cro4_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_csn_LPAREN_e_RPAREN_': '0 + EX_csn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ctbt_LPAREN_e_RPAREN_': '0 + EX_ctbt_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_cu2_LPAREN_e_RPAREN_': '0 + EX_cu2_LPAREN_e_RPAREN__influx + EX_cu2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_cu2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_cys_L_LPAREN_e_RPAREN_': '0 + EX_cys_L_LPAREN_e_RPAREN__influx + EX_cys_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_cytd_LPAREN_e_RPAREN_': '0 + EX_cytd_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_cytd_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_dad_2_LPAREN_e_RPAREN_': '0 + EX_dad_2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_dad_2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_dcyt_LPAREN_e_RPAREN_': '0 + EX_dcyt_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_dcyt_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ddca_LPAREN_e_RPAREN_': '0 + EX_ddca_LPAREN_e_RPAREN__influx + EX_ddca_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_dgsn_LPAREN_e_RPAREN_': '0 + EX_dgsn_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_dgsn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_din_LPAREN_e_RPAREN_': '0 + EX_din_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_drib_LPAREN_e_RPAREN_': '0 + EX_drib_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_duri_LPAREN_e_RPAREN_': '0 + EX_duri_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_fe2_LPAREN_e_RPAREN_': '0 + EX_fe2_LPAREN_e_RPAREN__influx + EX_fe2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_fe2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_fe3_LPAREN_e_RPAREN_': '0 + EX_fe3_LPAREN_e_RPAREN__influx + EX_fe3_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_fe3_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_fol_LPAREN_e_RPAREN_': '0 + EX_fol_LPAREN_e_RPAREN__influx + EX_fol_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_for_LPAREN_e_RPAREN_': '0 + EX_for_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_for_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_fru_LPAREN_e_RPAREN_': '0 + EX_fru_LPAREN_e_RPAREN__influx + EX_fru_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_gal_LPAREN_e_RPAREN_': '0 + EX_gal_LPAREN_e_RPAREN__influx + EX_gal_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_galt_LPAREN_e_RPAREN_': '0 + EX_galt_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_galt_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_galur_LPAREN_e_RPAREN_': '0 + EX_galur_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_gam_LPAREN_e_RPAREN_': '0 + EX_gam_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_gbbtn_LPAREN_e_RPAREN_': '0 + EX_gbbtn_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_gcald_LPAREN_e_RPAREN_': '0 + EX_gcald_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glc_LPAREN_e_RPAREN_': '0 + EX_glc_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glcur_LPAREN_e_RPAREN_': '0 + EX_glcur_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_gln_L_LPAREN_e_RPAREN_': '0 + EX_gln_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glu_L_LPAREN_e_RPAREN_': '0 + EX_glu_L_LPAREN_e_RPAREN__influx + EX_glu_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_glu_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_gly_LPAREN_e_RPAREN_': '0 + EX_gly_LPAREN_e_RPAREN__influx + EX_gly_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glyasn_LPAREN_e_RPAREN_': '0 + EX_glyasn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glyasp_LPAREN_e_RPAREN_': '0 + EX_glyasp_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glyb_LPAREN_e_RPAREN_': '0 + EX_glyb_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_glyc3p_LPAREN_e_RPAREN_': '0 + EX_glyc3p_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glyc_LPAREN_e_RPAREN_': '0 + EX_glyc_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glycys_LPAREN_e_RPAREN_': '0 + EX_glycys_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glygln_LPAREN_e_RPAREN_': '0 + EX_glygln_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glyglu_LPAREN_e_RPAREN_': '0 + EX_glyglu_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glyleu_LPAREN_e_RPAREN_': '0 + EX_glyleu_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glymet_LPAREN_e_RPAREN_': '0 + EX_glymet_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glyphe_LPAREN_e_RPAREN_': '0 + EX_glyphe_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glypro_LPAREN_e_RPAREN_': '0 + EX_glypro_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_glytyr_LPAREN_e_RPAREN_': '0 + EX_glytyr_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_gsn_LPAREN_e_RPAREN_': '0 + EX_gsn_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_gua_LPAREN_e_RPAREN_': '0 + EX_gua_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_h2_LPAREN_e_RPAREN_': '0 + EX_h2_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_h2o_LPAREN_e_RPAREN_': '0 + EX_h2o_LPAREN_e_RPAREN__influx + EX_h2o_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_h2o_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_h2s_LPAREN_e_RPAREN_': '0 + EX_h2s_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_h_LPAREN_e_RPAREN_': '0 + EX_h_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_h_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_hdca_LPAREN_e_RPAREN_': '0 + EX_hdca_LPAREN_e_RPAREN__influx + EX_hdca_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_hg2_LPAREN_e_RPAREN_': '0 + EX_hg2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_hg2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_his_L_LPAREN_e_RPAREN_': '0 + EX_his_L_LPAREN_e_RPAREN__influx + EX_his_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_hxan_LPAREN_e_RPAREN_': '0 + EX_hxan_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ile_L_LPAREN_e_RPAREN_': '0 + EX_ile_L_LPAREN_e_RPAREN__influx + EX_ile_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_indole_LPAREN_e_RPAREN_': '0 + EX_indole_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_inost_LPAREN_e_RPAREN_': '0 + EX_inost_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ins_LPAREN_e_RPAREN_': '0 + EX_ins_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_isobut_LPAREN_e_RPAREN_': '0 + EX_isobut_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_isocapr_LPAREN_e_RPAREN_': '0 + EX_isocapr_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_isoval_LPAREN_e_RPAREN_': '0 + EX_isoval_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_k_LPAREN_e_RPAREN_': '0 + EX_k_LPAREN_e_RPAREN__influx + EX_k_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_k_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_lac_D_LPAREN_e_RPAREN_': '0 + EX_lac_D_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_lac_D_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_lac_L_LPAREN_e_RPAREN_': '0 + EX_lac_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_lac_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_lcts_LPAREN_e_RPAREN_': '0 + EX_lcts_LPAREN_e_RPAREN__influx + EX_lcts_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_leu_L_LPAREN_e_RPAREN_': '0 + EX_leu_L_LPAREN_e_RPAREN__influx + EX_leu_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_leu_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_lys_L_LPAREN_e_RPAREN_': '0 + EX_lys_L_LPAREN_e_RPAREN__influx + EX_lys_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_lys_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_malt_LPAREN_e_RPAREN_': '0 + EX_malt_LPAREN_e_RPAREN__influx + EX_malt_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_malthx_LPAREN_e_RPAREN_': '0 + EX_malthx_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_malttr_LPAREN_e_RPAREN_': '0 + EX_malttr_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_man_LPAREN_e_RPAREN_': '0 + EX_man_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_mantr_LPAREN_e_RPAREN_': '0 + EX_mantr_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_met_D_LPAREN_e_RPAREN_': '0 + EX_met_D_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_met_L_LPAREN_e_RPAREN_': '0 + EX_met_L_LPAREN_e_RPAREN__influx + EX_met_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_metala_LPAREN_e_RPAREN_': '0 + EX_metala_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_metsox_R_L_LPAREN_e_RPAREN_': '0 + EX_metsox_R_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_metsox_S_L_LPAREN_e_RPAREN_': '0 + EX_metsox_S_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_mg2_LPAREN_e_RPAREN_': '0 + EX_mg2_LPAREN_e_RPAREN__influx + EX_mg2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_mg2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_mn2_LPAREN_e_RPAREN_': '0 + EX_mn2_LPAREN_e_RPAREN__influx + EX_mn2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_mn2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_mnl_LPAREN_e_RPAREN_': '0 + EX_mnl_LPAREN_e_RPAREN__influx + EX_mnl_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_mqn8_LPAREN_e_RPAREN_': '0 + EX_mqn8_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_na1_LPAREN_e_RPAREN_': '0 + EX_na1_LPAREN_e_RPAREN__influx + EX_na1_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_na1_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_nac_LPAREN_e_RPAREN_': '0 + EX_nac_LPAREN_e_RPAREN__influx + EX_nac_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_nac_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_nh4_LPAREN_e_RPAREN_': '0 + EX_nh4_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_nh4_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ni2_LPAREN_e_RPAREN_': '0 + EX_ni2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_no2_LPAREN_e_RPAREN_': '0 + EX_no2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_no2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_no3_LPAREN_e_RPAREN_': '0 + EX_no3_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_o2_LPAREN_e_RPAREN_': '0 + EX_o2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_o2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ocdca_LPAREN_e_RPAREN_': '0 + EX_ocdca_LPAREN_e_RPAREN__influx + EX_ocdca_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_ocdcea_LPAREN_e_RPAREN_': '0 + EX_ocdcea_LPAREN_e_RPAREN__influx + EX_ocdcea_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_orn_LPAREN_e_RPAREN_': '0 + EX_orn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_pb_LPAREN_e_RPAREN_': '0 + EX_pb_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_pb_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_phe_L_LPAREN_e_RPAREN_': '0 + EX_phe_L_LPAREN_e_RPAREN__influx + EX_phe_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_pheme_LPAREN_e_RPAREN_': '0 + EX_pheme_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_pheme_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_pi_LPAREN_e_RPAREN_': '0 + EX_pi_LPAREN_e_RPAREN__influx + EX_pi_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_pi_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ppa_LPAREN_e_RPAREN_': '0 + EX_ppa_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_ppa_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ppi_LPAREN_e_RPAREN_': '0 + EX_ppi_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_ppi_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_pro_L_LPAREN_e_RPAREN_': '0 + EX_pro_L_LPAREN_e_RPAREN__influx + EX_pro_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_pro_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ptrc_LPAREN_e_RPAREN_': '0 + EX_ptrc_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_pydam_LPAREN_e_RPAREN_': '0 + EX_pydam_LPAREN_e_RPAREN__influx + EX_pydam_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_pydx_LPAREN_e_RPAREN_': '0 + EX_pydx_LPAREN_e_RPAREN__influx + EX_pydx_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_pydxn_LPAREN_e_RPAREN_': '0 + EX_pydxn_LPAREN_e_RPAREN__influx + EX_pydxn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_q8_LPAREN_e_RPAREN_': '0 + EX_q8_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_raffin_LPAREN_e_RPAREN_': '0 + EX_raffin_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_rib_D_LPAREN_e_RPAREN_': '0 + EX_rib_D_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ribflv_LPAREN_e_RPAREN_': '0 + EX_ribflv_LPAREN_e_RPAREN__influx + EX_ribflv_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_rmn_LPAREN_e_RPAREN_': '0 + EX_rmn_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_salcn_LPAREN_e_RPAREN_': '0 + EX_salcn_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_sbt_DASH_d_LPAREN_e_RPAREN_': '0 + EX_sbt_DASH_d_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ser_D_LPAREN_e_RPAREN_': '0 + EX_ser_D_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ser_L_LPAREN_e_RPAREN_': '0 + EX_ser_L_LPAREN_e_RPAREN__influx + EX_ser_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_ser_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_sheme_LPAREN_e_RPAREN_': '0 + EX_sheme_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_so4_LPAREN_e_RPAREN_': '0 + EX_so4_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_so4_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_spmd_LPAREN_e_RPAREN_': '0 + EX_spmd_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_spmd_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_stys_LPAREN_e_RPAREN_': '0 + EX_stys_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_succ_LPAREN_e_RPAREN_': '0 + EX_succ_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_succ_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_sucr_LPAREN_e_RPAREN_': '0 + EX_sucr_LPAREN_e_RPAREN__influx + EX_sucr_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_thm_LPAREN_e_RPAREN_': '0 + EX_thm_LPAREN_e_RPAREN__influx + EX_thm_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_thr_L_LPAREN_e_RPAREN_': '0 + EX_thr_L_LPAREN_e_RPAREN__influx + EX_thr_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_thr_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_thymd_LPAREN_e_RPAREN_': '0 + EX_thymd_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_thymd_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_tre_LPAREN_e_RPAREN_': '0 + EX_tre_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ttdca_LPAREN_e_RPAREN_': '0 + EX_ttdca_LPAREN_e_RPAREN__influx + EX_ttdca_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_tyr_L_LPAREN_e_RPAREN_': '0 + EX_tyr_L_LPAREN_e_RPAREN__influx + EX_tyr_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_ura_LPAREN_e_RPAREN_': '0 + EX_ura_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_ura_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_urea_LPAREN_e_RPAREN_': '0 + EX_urea_LPAREN_e_RPAREN__Bacteroides * Bacteroides',
-  'EX_uri_LPAREN_e_RPAREN_': '0 + EX_uri_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_uri_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_val_L_LPAREN_e_RPAREN_': '0 + EX_val_L_LPAREN_e_RPAREN__influx + EX_val_L_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_val_L_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_xan_LPAREN_e_RPAREN_': '0 + EX_xan_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_xan_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_xyl_D_LPAREN_e_RPAREN_': '0 + EX_xyl_D_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_xyl_D_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'EX_zn2_LPAREN_e_RPAREN_': '0 + EX_zn2_LPAREN_e_RPAREN__influx + EX_zn2_LPAREN_e_RPAREN__Bacteroides * Bacteroides + EX_zn2_LPAREN_e_RPAREN__Actinomyces * Actinomyces',
-  'dreplication': '0 + dreplication_Bacteroides * Bacteroides + dreplication_Actinomyces * Actinomyces',
-  'pbiosynthesis': '0 + pbiosynthesis_Bacteroides * Bacteroides + pbiosynthesis_Actinomyces * Actinomyces',
-  'rtranscription': '0 + rtranscription_Bacteroides * Bacteroides + rtranscription_Actinomyces * Actinomyces',
-  'sink_PGPm1_LSQBKT_c_RSQBKT_': '0 + sink_PGPm1_LSQBKT_c_RSQBKT__Actinomyces * Actinomyces'}
-#+END_EXAMPLE
+# Out[30]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-
+    T=[]
+    X=[]
+    for sp in SpeciesDict.keys():
+            for P in AllPoints:
+  #                  for k in P.keys():
+                plt.plot(P['t'], P['EX_no2_LPAREN_e_RPAREN_'])
+    plt.xlabel('Time (minutes)')
+    plt.ylim([0,001])
+    plt.ylabel('gdw')
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[39]:
-: True
+# Out[36]:
+: Text(0,0.5,u'gdw')
+[[file:./obipy-resources/22448iB.png]]
 :END:
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-ModelDS.set(tdata=[0,10])
-P = ModelDS.compute('test').sample()
-for species in SpeciesDict.keys():
-    plt.plot(P['t'],P[SpeciesDict[species]['Name']])
-#+END_SRC
 
-#+RESULTS:
-:RESULTS:
-# Out[69]:
-[[file:./obipy-resources/38449aQ.png]]
-:END:
