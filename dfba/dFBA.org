@@ -725,122 +725,145 @@ import pdb
 
 ** Utility Functions
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-    # Functions for initialization
-    def cleanupname(name):
-        """
-        The reaction names in the model files 
-        don't have brackets or parentheses. I replaced
-        those found in the mediaFluxes file.
-        """
-        name = name.replace('[', '_LPAREN_')
-        name = name.replace(']', '_RPAREN_')
-        name = name.replace('(', '_LPAREN_')
-        name = name.replace(')', '_RPAREN_')
-        return name
+  # Functions for initialization
+  def cleanupname(name):
+      """
+       The reaction names in the model files 
+       don't have brackets or parentheses. I replaced
+       those found in the mediaFluxes file.
+       """
+      name = name.replace('[', '_LPAREN_')
+      name = name.replace(']', '_RPAREN_')
+      name = name.replace('(', '_LPAREN_')
+      name = name.replace(')', '_RPAREN_')
+      return name
 
-    def defineDFBAModel(SpeciesDict , MediaDF):
-        print("Defining Dynamical model... \n")
-        ParDef = dict()
-        VarDef = dict()
-        ICS = dict()
-        exchange_list = []
-        mediaDerivedComponents = {}
-        for i, row in MediaDF.iterrows():
-            N = cleanupname(row.Reaction)
-            mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+  def defineDFBAModel(SpeciesDict , MediaDF):
+      print("Defining Dynamical model... \n")
+      ParDef = dict()
+      VarDef = dict()
+      ICS = dict()
+      exchange_list = []
+      mediaDerivedComponents = {}
+      for i, row in MediaDF.iterrows():
+          N = cleanupname(row.Reaction)
+          mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
 
-        for species in SpeciesDict.keys():
-            SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
-            SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
-            SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
-            SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0]
-            exchange_list += SpeciesDict[species]['SpeciesModel'].exchanges
-            Name=SpeciesDict[species]['Name']
-            ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value
-            VarDef[Name] =  'mu_' + Name + ' * ' + Name ### Biomass
-            ICS[Name] = 1e-1
+      for species in SpeciesDict.keys():
+          SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
+          SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
+          SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
+          SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0]
+          exchange_list += SpeciesDict[species]['SpeciesModel'].exchanges
+          Name=SpeciesDict[species]['Name']
+          ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value
+          VarDef[Name] =  'mu_' + Name + ' * ' + Name ### Biomass
+          ICS[Name] = 1e-1
 
-        all_exchanges = set()
+      all_exchanges = set()
 
-        for ex in exchange_list:
-            all_exchanges.add(ex.id)
-   #     all_exchanges = list(set(exchange_list))
+      for ex in exchange_list:
+          all_exchanges.add(ex.id)
+          #     all_exchanges = list(set(exchange_list))
 
-        for rid in all_exchanges:
-            VarDef[rid] = '0'
-            ICS[rid] = 10
+      for rid in all_exchanges:
+          VarDef[rid] = '0'
+          ICS[rid] = 10
 
-            if rid in mediaDerivedComponents.keys():
-                ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
-                VarDef[rid] += ' + ' +  rid + '_influx'
+          if rid in mediaDerivedComponents.keys():
+              ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
+              VarDef[rid] += ' + ' +  rid + '_influx'
 
-            for species in SpeciesDict.keys():
-  #              print(SpeciesDict[species]['Name'])
-                if 'h2o' in rid:
-                    print(species, rid)
-                if rid in [species_r.id for species_r in SpeciesDict[species]['SpeciesModel'].exchanges]:
-                    Name = SpeciesDict[species]['Name']
-                    ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
-                    VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
+          for species in SpeciesDict.keys():
+              # print(SpeciesDict[species]['Name'])
+              if 'h2o' in rid:
+                  print(species, rid)
+              if rid in [species_r.id for species_r in SpeciesDict[species]['SpeciesModel'].exchanges]:
+                  Name = SpeciesDict[species]['Name']
+                  ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
+                  VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
 
-        ModelDef = dst.args(name=Name,
-                        pars=ParDef,
-                            varspecs=VarDef,
-                            ics=ICS)
-        ModelDS = dst.Vode_ODEsystem(ModelDef)
-        print("Done!")
-        return (SpeciesDict, ModelDef, ModelDS)
+      ModelDef = dst.args(name=Name,
+                      pars=ParDef,
+                          varspecs=VarDef,
+                          ics=ICS)
+      ModelDS = dst.Vode_ODEsystem(ModelDef)
+      print("Done!")
+      return (SpeciesDict, ModelDef, ModelDS)
 
-    # Functions for model updates
+  # Functions for model updates
 
-    def recomputeLowerBounds(SpeciesDict, PrevSteadyState):
-        for species in SpeciesDict.keys():
-            for rid in [rxn.id for rxn in SpeciesDict[species]['SpeciesModel'].exchanges]:
-                SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid) \
-                                                       .lower_bound = \
-                                                                      SpeciesDict[species]['OriginalLB'][rid] \
-                                                                      ,* PrevSteadyState[rid]/(0.0005+PrevSteadyState[rid])
-        return SpeciesDict
+  def recomputeLowerBounds(SpeciesDict, PrevSteadyState):
+      for species in SpeciesDict.keys():
+          for rid in [rxn.id for rxn in SpeciesDict[species]['SpeciesModel'].exchanges]:
+              SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid) \
+                                                     .lower_bound = \
+                                                                    SpeciesDict[species]['OriginalLB'][rid] \
+                                                                    ,* PrevSteadyState[rid]/(0.0005+PrevSteadyState[rid])
+      return SpeciesDict
 
-    def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
-        ParDef = {}
-        ICS = {}
-        for species in SpeciesDict:
-            solution = SpeciesDict[species]['SpeciesModel'].optimize()
-            Name = SpeciesDict[species]['Name']
-            ParDef['mu_' + Name] = solution.objective_value/60.0
-            ICS[Name] = PrevSteadyState[Name]
-            exchanges = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
-            for rid in exchanges:
-                ParDef[rid + '_' + Name] = solution.fluxes[rid]/60.0
-                ICS[rid] = PrevSteadyState[rid]
-        ModelDS.set(pars=ParDef, ics=ICS)
-        return ModelDS
+  def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
+      ParDef = {}
+      ICS = {}
+      for species in SpeciesDict:
+          solution = SpeciesDict[species]['SpeciesModel'].optimize()
+          Name = SpeciesDict[species]['Name']
+          ParDef['mu_' + Name] = solution.objective_value/60.0
+          ICS[Name] = PrevSteadyState[Name]
+          exchanges = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
+          for rid in exchanges:
+              ParDef[rid + '_' + Name] = solution.fluxes[rid]/60.0
+              ICS[rid] = PrevSteadyState[rid]
+      ModelDS.set(pars=ParDef, ics=ICS)
+      return ModelDS
 
-    def update(SpeciesDict, ModelDS, PrevSteadyState):
-        UpdatedSpeciesDict = recomputeLowerBounds(SpeciesDict,
-                                                  PrevSteadyState)
+  def update(SpeciesDict, ModelDS, PrevSteadyState):
+      UpdatedSpeciesDict = recomputeLowerBounds(SpeciesDict,
+                                                PrevSteadyState)
 
-        UpdatedDynamicModel = updateFluxParameters(UpdatedSpeciesDict,
-                                                   ModelDS,
-                                                   PrevSteadyState)
-        # P = simulateModel(updatedDynamicalModel)
-        return(UpdatedSpeciesDict, UpdatedDynamicModel)
+      UpdatedDynamicModel = updateFluxParameters(UpdatedSpeciesDict,
+                                                 ModelDS,
+                                                 PrevSteadyState)
+      # P = simulateModel(updatedDynamicalModel)
+      return(UpdatedSpeciesDict, UpdatedDynamicModel)
 
-    def get_ss(PointSet):
-          SSPoints={}
-          for k in PointSet.keys():
-              if len(PointSet[k]) == 0:
-                  SSPoints[k]= 0 #PointSet[k][-1]
-              else:
-                  SSPoints[k]=PointSet[k][-1]
-          return(SSPoints)
+  def get_ss(PointSet):
+        SSPoints={}
+        for k in PointSet.keys():
+            if len(PointSet[k]) == 0:
+                SSPoints[k]= 0 #PointSet[k][-1]
+            else:
+                SSPoints[k]=PointSet[k][-1]
+        return(SSPoints)
 
+  def checkNegativeMetabolites(PointSet):
+      IndexStop = len(PointSet['EX_h2o_LPAREN_e_RPAREN_']) - 1
+    
+      for variable in PointSet.keys():
+          if PointSet[variable][-1] < 0.0: # checking only final Tpoint, b/c monotonic
+              varIndex = next((index for index,value in enumerate(PointSet[variable]) if value < 0), None)
+              if varIndex < IndexStop:
+                  # Update the index for the first negative crossing
+                  IndexStop = varIndex
+
+      if IndexStop < len(PointSet['EX_h2o_LPAREN_e_RPAREN_']) - 1 and IndexStop > 0:
+          P_tilFirstNeg={}
+          for variable in PointSet.keys():
+              P_tilFirstNeg[variable]=P[variable][:IndexStop-1]
+              if PointSet[variable][IndexStop] < 0:
+                  if len(P_tilFirstNeg[variable]) > 1:
+                      P_tilFirstNeg[variable][-1] = 0
+                  else:
+                      P_tilFirstNeg[variable] = [0.0]
+                    
+          P_tilFirstNeg['t'] = PointSet['t'][:IndexStop-1]
+          PointSet = P_tilFirstNeg
+      return(PointSet)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[7]:
+# Out[23]:
 :END:
 
 ** Test:
@@ -857,7 +880,7 @@ import pdb
 
 #+RESULTS:
 :RESULTS:
-# Out[15]:
+# Out[24]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -880,30 +903,9 @@ import pdb
 
       ModelDS.set(tdata=[T0, T0 + TSPAN])
       P = ModelDS.compute('test').sample() 
-      AllNegativeValues = {}
 
       # Initialize
-      IndexStop=len( P['EX_h2o_LPAREN_e_RPAREN_'] )-1
-
-      for variable in P.keys():
-          if P[variable][-1] < 0.0: # checking only final Tpoint, b/c monotonic
-              varIndex = next((index for index,value in enumerate(P[variable]) if value < 0), None)
-              if varIndex < IndexStop:
-                  # Update the index for the first negative crossing
-                  IndexStop = varIndex
-
-      if IndexStop < len( P['EX_h2o_LPAREN_e_RPAREN_'] )-1 and IndexStop > 0:
-          P_tilFirstNeg={}
-          for variable in P.keys():
-              P_tilFirstNeg[variable]=P[variable][:IndexStop-1]
-              if P[variable][IndexStop] < 0:
-                  if len(P_tilFirstNeg[variable]) > 1:
-                      P_tilFirstNeg[variable][-1] = 0
-                  else:
-                      P_tilFirstNeg[variable] = [0.0]
-
-          P_tilFirstNeg['t'] = P['t'][:IndexStop-1]
-          P = P_tilFirstNeg
+      P = checkNegativeMetabolites(P) 
       if len(P['t']) != 0:
           T0 = P['t'][-1]
       else:
@@ -914,7 +916,7 @@ import pdb
 
 #+RESULTS:
 :RESULTS:
-# Out[16]:
+# Out[25]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -934,8 +936,8 @@ plt.ylabel('gdw')
 
 #+RESULTS:
 :RESULTS:
-# Out[17]:
+# Out[26]:
 : Text(0,0.5,u'gdw')
-[[file:./obipy-resources/2244WwZ.png]]
+[[file:./obipy-resources/2244j6f.png]]
 :END:
 
