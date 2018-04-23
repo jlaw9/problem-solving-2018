@@ -716,13 +716,14 @@ import matplotlib.pyplot as plt
 import copy
 import sys
 import pdb
+import time
  #+END_SRC
 
  #+RESULTS:
  :RESULTS:
  # Out[1]:
  :END:
-
+ 
 ** Utility Functions
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
   # Functions for initialization
@@ -732,10 +733,21 @@ import pdb
        don't have brackets or parentheses. I replaced
        those found in the mediaFluxes file.
        """
-      name = name.replace('[', '_LPAREN_')
-      name = name.replace(']', '_RPAREN_')
-      name = name.replace('(', '_LPAREN_')
-      name = name.replace(')', '_RPAREN_')
+      # name = name.replace('[', '_LPAREN_')
+      # name = name.replace(']', '_RPAREN_')
+      # name = name.replace('(', '_LPAREN_')
+      # name = name.replace(')', '_RPAREN_')
+
+      name = name.replace('[', '__40__')
+      name = name.replace(']', '__41__')
+      name = name.replace('(', '__40__')
+      name = name.replace(')', '__41__')
+
+
+      # name = name.replace('[', '__91__')
+      # name = name.replace(']', '__93__')
+      # name = name.replace('(', '__91__')
+      # name = name.replace(')', '__93__')
       return name
 
   def defineDFBAModel(SpeciesDict , MediaDF):
@@ -750,24 +762,28 @@ import pdb
           mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
 
       for species in SpeciesDict.keys():
+          print("\nReading species " + str(species))
           SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
-          SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
+          SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound/10.0 for r in SpeciesDict[species]['SpeciesModel'].exchanges}
+          # SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
           SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
-          SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0]
+          SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0] + '_' \
+          + SpeciesDict[species]['SpeciesModel'].name.split(' ')[1].replace('.','')
           exchange_list += SpeciesDict[species]['SpeciesModel'].exchanges
           Name=SpeciesDict[species]['Name']
-          ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value
-          VarDef[Name] =  'mu_' + Name + ' * ' + Name ### Biomass
-          ICS[Name] = 1e-1
+          ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value/60
+          VarDef[Name] =  'mu_' + Name + ' * ' + Name + ' - ' + 'Dilution * ' + Name ### Biomass
+          ICS[Name] = SpeciesDict[species]['initAbundance']
+
+      ParDef['Dilution'] = 0.002
 
       all_exchanges = set()
 
       for ex in exchange_list:
           all_exchanges.add(ex.id)
-          #     all_exchanges = list(set(exchange_list))
 
       for rid in all_exchanges:
-          VarDef[rid] = '0'
+          VarDef[rid] = '- Dilution * ' + rid
           ICS[rid] = 10
 
           if rid in mediaDerivedComponents.keys():
@@ -775,16 +791,15 @@ import pdb
               VarDef[rid] += ' + ' +  rid + '_influx'
 
           for species in SpeciesDict.keys():
-              # print(SpeciesDict[species]['Name'])
-              if 'h2o' in rid:
+              if 'h2o' in rid: # Check to see if a unique metabolite is represented only once
                   print(species, rid)
               if rid in [species_r.id for species_r in SpeciesDict[species]['SpeciesModel'].exchanges]:
                   Name = SpeciesDict[species]['Name']
                   ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
                   VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
 
-      ModelDef = dst.args(name=Name,
-                      pars=ParDef,
+      ModelDef = dst.args(name='Comunity',
+                          pars=ParDef,
                           varspecs=VarDef,
                           ics=ICS)
       ModelDS = dst.Vode_ODEsystem(ModelDef)
@@ -793,13 +808,13 @@ import pdb
 
   # Functions for model updates
 
-  def recomputeLowerBounds(SpeciesDict, PrevSteadyState):
+  def recomputeLowerBounds(SpeciesDict, PrevSteadyState, Kmax):
       for species in SpeciesDict.keys():
           for rid in [rxn.id for rxn in SpeciesDict[species]['SpeciesModel'].exchanges]:
               SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid) \
                                                      .lower_bound = \
                                                                     SpeciesDict[species]['OriginalLB'][rid] \
-                                                                    ,* PrevSteadyState[rid]/(0.0005+PrevSteadyState[rid])
+                                                                    ,* PrevSteadyState[rid]/(Kmax+PrevSteadyState[rid])
       return SpeciesDict
 
   def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
@@ -817,124 +832,191 @@ import pdb
       ModelDS.set(pars=ParDef, ics=ICS)
       return ModelDS
 
-  def update(SpeciesDict, ModelDS, PrevSteadyState):
+  def update(SpeciesDict, ModelDS, PrevSteadyState, Kmax):
       UpdatedSpeciesDict = recomputeLowerBounds(SpeciesDict,
-                                                PrevSteadyState)
+                                                PrevSteadyState, Kmax)
 
       UpdatedDynamicModel = updateFluxParameters(UpdatedSpeciesDict,
                                                  ModelDS,
                                                  PrevSteadyState)
-      # P = simulateModel(updatedDynamicalModel)
       return(UpdatedSpeciesDict, UpdatedDynamicModel)
 
   def get_ss(PointSet):
-        SSPoints={}
-        for k in PointSet.keys():
-            if len(PointSet[k]) == 0:
-                SSPoints[k]= 0 #PointSet[k][-1]
-            else:
-                SSPoints[k]=PointSet[k][-1]
-        return(SSPoints)
+      SSPoints={}
+      for k in PointSet.keys():
+          SSPoints[k]=PointSet[k][-1]
+      return(SSPoints)
 
-  def checkNegativeMetabolites(PointSet):
-      IndexStop = len(PointSet['EX_h2o_LPAREN_e_RPAREN_']) - 1
-    
+  def checkNegativeMetabolites(PointSet, StoreNegatives):
+      IndexStop = len(PointSet['t'])
+
       for variable in PointSet.keys():
-          if PointSet[variable][-1] < 0.0: # checking only final Tpoint, b/c monotonic
+          if any(PointSet[variable] < 0.0): # checking only final Tpoint, b/c monotonic
               varIndex = next((index for index,value in enumerate(PointSet[variable]) if value < 0), None)
               if varIndex < IndexStop:
                   # Update the index for the first negative crossing
                   IndexStop = varIndex
 
-      if IndexStop < len(PointSet['EX_h2o_LPAREN_e_RPAREN_']) - 1 and IndexStop > 0:
+      if IndexStop < len(PointSet['t']) and IndexStop > 0:
           P_tilFirstNeg={}
           for variable in PointSet.keys():
-              P_tilFirstNeg[variable]=P[variable][:IndexStop-1]
+              P_tilFirstNeg[variable]=PointSet[variable][:IndexStop]
               if PointSet[variable][IndexStop] < 0:
-                  if len(P_tilFirstNeg[variable]) > 1:
-                      P_tilFirstNeg[variable][-1] = 0
-                  else:
-                      P_tilFirstNeg[variable] = [0.0]
-                    
-          P_tilFirstNeg['t'] = PointSet['t'][:IndexStop-1]
+                  P_tilFirstNeg[variable][IndexStop - 1] = 0
+                  StoreNegatives.add(variable)
+                  print('\t' + str(variable) +  'is 0 at ' + str( PointSet['t'][IndexStop]))
+
+          P_tilFirstNeg['t'] = PointSet['t'][:IndexStop]
           PointSet = P_tilFirstNeg
-      return(PointSet)
+      return(PointSet,StoreNegatives)
+
+  def plotBiomass(SpeciesDict, AllPoints):
+      TimePoints={}
+      TimePoints['t'] =[]
+
+      for P in AllPoints:
+          TimePoints['t'] += list(P['t'])
+
+      for sp in SpeciesDict.keys():
+          Name = SpeciesDict[sp]['Name']
+          TimePoints[Name] = []
+          for P in AllPoints:
+              TimePoints[Name]+=list(P[Name])
+
+      for k in TimePoints.keys():
+          if k != 't':
+              plt.plot(TimePoints['t'], TimePoints[k], label = k)
+
+          plt.xlabel('Time (minutes)')
+      plt.ylabel('gdw')
+      plt.legend()
+
+
+  def plotMetabolites(AllPoints):
+      TimePoints={}
+      TimePoints['t'] =[]
+
+      for P in AllPoints:
+          TimePoints['t'] += list(P['t'])
+
+      for v in P.keys():
+          TimePoints[v] = []
+          for P in AllPoints:
+              TimePoints[v]+=list(P[v])
+
+      for k in TimePoints.keys():
+          if k != 't':
+              plt.plot(TimePoints['t'], TimePoints[v])
+
+          plt.xlabel('Time (minutes)')
+      plt.ylabel('mmol')
+      plt.legend()
+
+  def simulateCommunity(SpeciesDict, Diet):
+      InitialValues = {}
+      SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet)
+      InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
+      AllPoints = []
+      StoreNegatives = set()
+      P = InitialValues
+      MaxIter= 400
+      T0= 0
+      TEND = 2000
+      TSPAN = 10
+      Kmax = 0.01#0.01
+      IndexStop = 1 
+      i=0
+
+      clockstart = time.clock()
+      while T0 < TEND and i < MaxIter:
+          i+=1
+          print(str(i) + ' ' + str(T0))
+          SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P), Kmax)
+
+          if T0+TSPAN > TEND:
+              TSPAN = TEND - T0
+
+          ModelDS.set(tdata=[T0, T0 + TSPAN])
+          P = ModelDS.compute('test').sample() 
+          OldT = P['t'][-1]
+          # Initialize
+          P, StoreNegatives = checkNegativeMetabolites(P, StoreNegatives) 
+          T0 = P['t'][-1]
+          if OldT != T0:
+              TSPAN = 1.0
+          else:
+              TSPAN = 10
+          AllPoints.append(P)
+
+      print("This took " + str(time.clock() - clockstart) + "s")
+      return AllPoints
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[23]:
+# Out[26]:
 :END:
 
 ** Test:
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-  SpeciesDict = {'Sp1': {'File':'./data/Bacteroides_sp_1_1_14.xml'},
-                 'Sp2': {'File':'./data/Actinomyces_urogenitalis_DSM_15434.xml'},
-                 'Sp3': {'File':'./data/Escherichia_coli_str_K_12_substr_MG1655.xml'}
+  SpeciesDict = dict()
+
+  SpeciesDict = {
+      # 'H': {'File':'../../Recon3D_301_SBML/Recon3D_301.xml',
+      #         'initAbundance': 0.01},
+      'Sp1': {'File':'./data/average-european-diet/Bacteroides_sp_1_1_14.xml',
+              'initAbundance': 0.01},
+      'Sp2': {'File':'./data/average-european-diet/Actinomyces_urogenitalis_DSM_15434.xml',
+              'initAbundance': 0.01},
+      'Sp3': {'File':'./data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
+              'initAbundance': 0.01},
+      'Sp4': {'File':'./data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
+              'initAbundance': 0.01},
+      'Sp5': {'File':'./data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
+              'initAbundance': 0.01},
+      'Sp6': {'File':'./data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
+                 'initAbundance': 0.01},
+      'Sp7': {'File':'./data/average-european-diet/Bacteroides_ovatus_ATCC_8483.xml',
+      'initAbundance': 0.01},
+      # 'Sp8': {'File':'./data/average-european-diet/Bacteroides_vulgatus_ATCC_8482.xml',
+      # 'initAbundance': 0.01},
+      # 'Sp9': {'File':'./data/average-european-diet/Bacteroides_fragilis_NCTC_9343.xml',
+      # 'initAbundance': 0.01},
   }
+
   MediaDF = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
 
-  SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, MediaDF)
-  InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
+  Output = simulateCommunity(SpeciesDict, MediaDF)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[29]:
+# Out[27]:
 :END:
 
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-7sp.png
+plotBiomass(SpeciesDict, Output)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[28]:
+[[file:./obipy-resources/2018-04-23-7sp.png]]
+:END:
+
+
+- 500 iterations took 136 s
+- 300 iterations took 129s!
+- 1000 iterations for 4 species simulated until 96 minutes took 255s
+- 1000 iterations for 6 sp till 116 min took 335s
+- 1000 iterations for 9 sp till 113min took 525s
+- 2000 iterations for 9 sp till 85.7 min took 1021s
+
+
+#+RESULTS:
+:RESULTS:
+0 - 3ea91c73-2ea8-4c5b-b8d9-cef546eaa446
+:END:
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-  AllPoints = []
-  P = InitialValues
-  T0=0
-  TEND = 800
-  TSPAN = 100
-  IndexStop = len(P['EX_h2o_LPAREN_e_RPAREN_'])
-  i=0
-  MaxIter=50
-  TERMINATE = False
-  while T0 < TEND and i < MaxIter and not TERMINATE:
-      i+=1
-      print(T0)
-      SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P))
-
-      if T0+TSPAN > TEND:
-          TSPAN = TEND - T0
-
-      ModelDS.set(tdata=[T0, T0 + TSPAN])
-      P = ModelDS.compute('test').sample() 
-
-      # Initialize
-      P = checkNegativeMetabolites(P) 
-      if len(P['t']) != 0:
-          T0 = P['t'][-1]
-      else:
-          TERMINATE = True
-
-      AllPoints.append(P)
+plotMetabolites(AllPoints)
 #+END_SRC
-
-#+RESULTS:
-:RESULTS:
-# Out[30]:
-:END:
-
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-    T=[]
-    X=[]
-    for sp in SpeciesDict.keys():
-            for P in AllPoints:
-  #                  for k in P.keys():
-                plt.plot(P['t'], P['EX_no2_LPAREN_e_RPAREN_'])
-    plt.xlabel('Time (minutes)')
-    plt.ylim([0,001])
-    plt.ylabel('gdw')
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-# Out[36]:
-: Text(0,0.5,u'gdw')
-[[file:./obipy-resources/22448iB.png]]
-:END:
-
