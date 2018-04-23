@@ -815,6 +815,9 @@ import time
                                                      .lower_bound = \
                                                                     SpeciesDict[species]['OriginalLB'][rid] \
                                                                     ,* PrevSteadyState[rid]/(Kmax+PrevSteadyState[rid])
+              if abs(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound) < 1e-10:
+                  # s = numpy.sign(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound)
+                  SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound = 0.0
       return SpeciesDict
 
   def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
@@ -859,9 +862,15 @@ import time
 
       if IndexStop < len(PointSet['t']) and IndexStop > 0:
           P_tilFirstNeg={}
+          if len(PointSet[variable] > IndexStop+5):
+              Extension = 5
+          elif len(PointSet[variable] > IndexStop+2):
+              Extension = 2
+          else:
+              Extension = 0
           for variable in PointSet.keys():
               P_tilFirstNeg[variable]=PointSet[variable][:IndexStop]
-              if PointSet[variable][IndexStop] < 0:
+              if PointSet[variable][IndexStop + Extension] < 0.0:
                   P_tilFirstNeg[variable][IndexStop - 1] = 0
                   StoreNegatives.add(variable)
                   print('\t' + str(variable) +  'is 0 at ' + str( PointSet['t'][IndexStop]))
@@ -922,7 +931,7 @@ import time
       MaxIter= 400
       T0= 0
       TEND = 2000
-      TSPAN = 10
+      TSPAN = 60
       Kmax = 0.01#0.01
       IndexStop = 1 
       i=0
@@ -945,7 +954,7 @@ import time
           if OldT != T0:
               TSPAN = 1.0
           else:
-              TSPAN = 10
+              TSPAN = 60
           AllPoints.append(P)
 
       print("This took " + str(time.clock() - clockstart) + "s")
@@ -954,44 +963,64 @@ import time
 
 #+RESULTS:
 :RESULTS:
-# Out[26]:
+# Out[2]:
 :END:
 
 ** Test:
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-  SpeciesDict = dict()
+    SpeciesDict = dict()
 
-  SpeciesDict = {
-      # 'H': {'File':'../../Recon3D_301_SBML/Recon3D_301.xml',
-      #         'initAbundance': 0.01},
-      'Sp1': {'File':'./data/average-european-diet/Bacteroides_sp_1_1_14.xml',
-              'initAbundance': 0.01},
-      'Sp2': {'File':'./data/average-european-diet/Actinomyces_urogenitalis_DSM_15434.xml',
-              'initAbundance': 0.01},
-      'Sp3': {'File':'./data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
-              'initAbundance': 0.01},
-      'Sp4': {'File':'./data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
-              'initAbundance': 0.01},
-      'Sp5': {'File':'./data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
-              'initAbundance': 0.01},
-      'Sp6': {'File':'./data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
-                 'initAbundance': 0.01},
-      'Sp7': {'File':'./data/average-european-diet/Bacteroides_ovatus_ATCC_8483.xml',
-      'initAbundance': 0.01},
-      # 'Sp8': {'File':'./data/average-european-diet/Bacteroides_vulgatus_ATCC_8482.xml',
-      # 'initAbundance': 0.01},
-      # 'Sp9': {'File':'./data/average-european-diet/Bacteroides_fragilis_NCTC_9343.xml',
-      # 'initAbundance': 0.01},
-  }
+    SpeciesDict = {'Sp1': {'File': './data/average-european-diet/Bacteroides_sp_1_1_14.xml', 'initAbundance': 0.01},
+   'Sp10': {'File': './data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
+    'initAbundance': 0.01},
+   'Sp2': {'File': './data/average-european-diet/Ruminococcus_flavefaciens_FD_1.xml',
+    'initAbundance': 0.01},
+   'Sp3': {'File': './data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
+    'initAbundance': 0.01},
+   'Sp4': {'File': './data/average-european-diet/Mycobacterium_avium_subsp_avium_ATCC_25291.xml',
+    'initAbundance': 0.01},
+   'Sp5': {'File': './data/average-european-diet/Actinomyces_viscosus_C505.xml',
+    'initAbundance': 0.01},
+   'Sp6': {'File': './data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
+    'initAbundance': 0.01},
+   'Sp7': {'File': './data/average-european-diet/Arcanobacterium_haemolyticum_DSM_20595.xml',
+    'initAbundance': 0.01},
+   'Sp8': {'File': './data/average-european-diet/Streptococcus_intermedius_JTH08.xml',
+    'initAbundance': 0.01},
+   'Sp9': {'File': './data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
+    'initAbundance': 0.01}} 
 
-  MediaDF = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
+  # {
+  #       # 'H': {'File':'../../Recon3D_301_SBML/Recon3D_301.xml',
+  #       #         'initAbundance': 0.01},
+  #       'Sp1': {'File':'./data/average-european-diet/Bacteroides_sp_1_1_14.xml',
+  #               'initAbundance': 0.01},
+  #       'Sp2': {'File':'./data/average-european-diet/Actinomyces_urogenitalis_DSM_15434.xml',
+  #               'initAbundance': 0.01},
+  #       'Sp3': {'File':'./data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
+  #               'initAbundance': 0.01},
+  #       'Sp4': {'File':'./data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
+  #               'initAbundance': 0.01},
+  #       'Sp5': {'File':'./data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
+  #               'initAbundance': 0.01},
+  #       'Sp6': {'File':'./data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
+  #                  'initAbundance': 0.01},
+  #       'Sp7': {'File':'./data/average-european-diet/Bacteroides_ovatus_ATCC_8483.xml',
+  #       'initAbundance': 0.01},
+  #       # 'Sp8': {'File':'./data/average-european-diet/Bacteroides_vulgatus_ATCC_8482.xml',
+  #       # 'initAbundance': 0.01},
+  #       # 'Sp9': {'File':'./data/average-european-diet/Bacteroides_fragilis_NCTC_9343.xml',
+  #       # 'initAbundance': 0.01},
+  #   }
 
-  Output = simulateCommunity(SpeciesDict, MediaDF)
+    MediaDF = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
+
+    Output = simulateCommunity(SpeciesDict, MediaDF)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[27]:
+0 - 7df33373-9dbe-4aa2-9f1b-f6220980fd72
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-7sp.png
@@ -1000,7 +1029,7 @@ plotBiomass(SpeciesDict, Output)
 
 #+RESULTS:
 :RESULTS:
-# Out[28]:
+# Out[44]:
 [[file:./obipy-resources/2018-04-23-7sp.png]]
 :END:
 
