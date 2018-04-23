@@ -784,7 +784,7 @@ import time
 
       for rid in all_exchanges:
           VarDef[rid] = '- Dilution * ' + rid
-          ICS[rid] = 10
+          ICS[rid] = 0.1 #10.0
 
           if rid in mediaDerivedComponents.keys():
               ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
@@ -815,9 +815,9 @@ import time
                                                      .lower_bound = \
                                                                     SpeciesDict[species]['OriginalLB'][rid] \
                                                                     ,* PrevSteadyState[rid]/(Kmax+PrevSteadyState[rid])
-              if abs(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound) < 1e-10:
-                  # s = numpy.sign(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound)
-                  SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound = 0.0
+              # if abs(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound) < 1e-10:
+              #     # s = numpy.sign(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound)
+              #     SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound = 0.0
       return SpeciesDict
 
   def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
@@ -830,6 +830,8 @@ import time
           ICS[Name] = PrevSteadyState[Name]
           exchanges = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
           for rid in exchanges:
+              if abs(solution.fluxes[rid]/60.0) < 1e-12: # Because very small non-zero solutions may come up despite 0 LB
+                  solution.fluxes[rid] = 0
               ParDef[rid + '_' + Name] = solution.fluxes[rid]/60.0
               ICS[rid] = PrevSteadyState[rid]
       ModelDS.set(pars=ParDef, ics=ICS)
@@ -928,7 +930,7 @@ import time
       AllPoints = []
       StoreNegatives = set()
       P = InitialValues
-      MaxIter= 400
+      MaxIter= 300
       T0= 0
       TEND = 2000
       TSPAN = 60
@@ -963,7 +965,7 @@ import time
 
 #+RESULTS:
 :RESULTS:
-# Out[2]:
+# Out[5]:
 :END:
 
 ** Test:
@@ -1020,7 +1022,7 @@ import time
 
 #+RESULTS:
 :RESULTS:
-0 - 7df33373-9dbe-4aa2-9f1b-f6220980fd72
+# Out[6]:
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-7sp.png
@@ -1029,7 +1031,7 @@ plotBiomass(SpeciesDict, Output)
 
 #+RESULTS:
 :RESULTS:
-# Out[44]:
+# Out[7]:
 [[file:./obipy-resources/2018-04-23-7sp.png]]
 :END:
 
