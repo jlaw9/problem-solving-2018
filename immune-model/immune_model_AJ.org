@@ -1,0 +1,263 @@
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+%matplotlib inline 
+import matplotlib.pyplot as plt
+import PyDSTool as dst
+from tqdm import tqdm
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[1]:
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+variable_dict = {
+    'B_M':'B_MSource - (k_AD*B_M)/(k_3+B_M) - (k_AT*R_E*B_M)/(alpha_EM+R_E)-epsilon*B_M',
+    'epsilon':'(epsilon_0-epsilon)/tau_p + f*P*(epsilon_max-epsilon)',
+    'R_E':'(a_1*B_M*T_I)/((gamma_1+B_M)*(1+alpha_RE*I_E))+(k_1*P)/(1+alpha_RE*I_E)-mu_RE*R_E',
+    'I_E':'(k_IE*R_E)/(gamma_IE+R_E)+alpha_11*B_M-mu_IE*I_E',
+    'B':'max(0,epsilon*B_M-T) -k_5*P*B',
+    'P':'(k_PM*B)/(gamma_12+B)+(k_PE*max(0,R_E-T_RE))/(1+gamma_PE*I_E)-mu_4*P'
+    
+}
+
+parameter_dict = {
+    'B_MSource':2.2e6,#1.5e6,#
+    'k_AD':1.5e6,#
+    'k_3':6e6,
+    'k_AT':0.03,
+    'alpha_EM':0.18,
+    'epsilon_0':0.1,
+    'epsilon_max':0.21,
+    'tau_p':24,
+    'f':0.5,
+    'a_1':0.1,#
+    'gamma_1':5e6,
+    'k_1':0.5,
+    'alpha_RE':2,
+    'mu_RE':0.1,
+    'k_IE':50,#
+    'gamma_IE':10,
+    'alpha_11':0.1,
+    'mu_IE':1,
+    'T':1.1e6,
+    'k_5':25,
+    'k_PM':0.8,
+    'gamma_12':1.2e6,
+    'k_PE':0.002,
+    'T_RE':0.65,
+    'gamma_PE':1,
+    'mu_4':0.05,
+    'T_I':1e6 #????
+}
+#notebook
+initial_conditions = {
+    'B_M':1,
+    'epsilon':0.1,
+    'R_E':0,
+    'I_E':0,
+    'B':1,
+    'P':1
+}
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[2]:
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  ModelDefinition=dst.args(name="2013 Aciero Model",
+                          varspecs=variable_dict,
+                          pars=parameter_dict,
+                          ics=initial_conditions,
+                          tdata=[0,300])
+  ModelDS = dst.Vode_ODEsystem(ModelDefinition)
+
+  PointSet = ModelDS.compute('ts').sample()
+  for k in PointSet.keys():
+      plt.plot(PointSet['t'], PointSet[k], label=k)
+  plt.legend()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[22]:
+: <matplotlib.legend.Legend at 0x7fe15416d810>
+[[file:./obipy-resources/1489Mgd.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  def prettyplot(Points):
+      f, ax = plt.subplots(1,2)
+      # ax[0].plot(Points['t'],Points['I_E'],label='I_E')
+      ax[0].plot(Points['t'],Points['R_E'],label='R_E')
+      ax[0].legend()
+      # ax[1].plot(Points['t'],Points['B'],label='B')
+      ax[1].plot(Points['t'],Points['P'],label='P')
+      ax[1].plot(Points['t'],Points['epsilon'],label='epsilon')
+      ax[1].legend()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[68]:
+:END:
+
+** Only Bacteria
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  ModelDS.set(ics={
+      'B_M':1e6,
+      'epsilon':0.1,
+      'R_E':0,
+      'I_E':0,
+      'B':0,
+      'P':0},
+              pars={'T_I':1e3}
+  )
+  PointSet = ModelDS.compute('ts').sample()
+  for k in PointSet.keys():
+      if k!='B_M':
+          plt.plot(PointSet['t'], PointSet[k], label=k)
+  plt.legend()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[24]:
+: <matplotlib.legend.Legend at 0x7fe11c94cb50>
+[[file:./obipy-resources/1489Zqj.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+plt.plot(PointSet['t'], PointSet['epsilon'])
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[25]:
+: [<matplotlib.lines.Line2D at 0x7fe11cbdb210>]
+[[file:./obipy-resources/1489m0p.png]]
+:END:
+
+What happens if I set T_I to 0?
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  ModelDS.set(ics={
+      'B_M':1e6,
+      'epsilon':0.1,
+      'R_E':0,
+      'I_E':0,
+      'B':0,
+      'P':0},
+      pars={'T_I':1e3}
+  )
+  PointSet = ModelDS.compute('ts').sample()
+
+  prettyplot(PointSet)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[27]:
+[[file:./obipy-resources/1489z-v.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+plt.plot(PointSet['t'],PointSet['R_E'])
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[28]:
+: [<matplotlib.lines.Line2D at 0x7fe11c8c8dd0>]
+[[file:./obipy-resources/1489AJ2.png]]
+:END:
+
+- What about setting the direct activation of TLR9 by bacteria to 0, i.e. a11=0
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  ModelDS.set(ics={
+      'B_M':1e6,
+      'epsilon':0.1,
+      'R_E':0,
+      'I_E':0,
+      'B':0,
+      'P':0},
+      pars={'T_I':1e3, 'alpha_11':0.0}
+  )
+  PointSet = ModelDS.compute('ts').sample()
+
+  prettyplot(PointSet)
+
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[29]:
+[[file:./obipy-resources/1489ySF.png]]
+:END:
+
+
+- And the next case where TLR4 is only activated by bacteria and not the assumed cytokine mechanism. i.e. set k1=0
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  ModelDS.set(pars=parameter_dict,ics=initial_conditions)
+  ModelDS.set(ics={
+      'B_M':1e6,
+      'epsilon':0.1,
+      'R_E':0.0,
+      'I_E':0.0,
+      'B':0,
+      'P':0},
+              pars={'T_I':1e3,
+                    'a_1':0.5,
+                    #'T':2e6
+                    'alpha_11':0.0,
+                    # 'gamma_IE':10,
+                    #'k_IE':150
+                    # 'k_PM':0.0,
+                    #'k_1':0.0
+              }
+  )
+  PointSet = ModelDS.compute('ts').sample() 
+  #  prettyplot(PointSet)
+  eBm = [PointSet['B_M'][i]*PointSet['epsilon'][i]/1e6 for i in range(0,len(PointSet))]
+  plt.plot(PointSet['t'],eBm)
+
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[122]:
+: [<matplotlib.lines.Line2D at 0x7fe11a0de750>]
+[[file:./obipy-resources/1489Qyh.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[36]:
+: [<matplotlib.lines.Line2D at 0x7fe11ca09d10>]
+[[file:./obipy-resources/1489AQq.png]]
+:END:
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+plt.plot(PointSet['t'], PointSet['epsilon'])
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[57]:
+: [<matplotlib.lines.Line2D at 0x7fe11cac6f10>]
+[[file:./obipy-resources/1489zaA.png]]
+:END:
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[111]:
+: [<matplotlib.lines.Line2D at 0x7fe11c87c650>]
+[[file:./obipy-resources/1489pMb.png]]
+:END:

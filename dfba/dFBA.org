@@ -815,9 +815,6 @@ import time
                                                      .lower_bound = \
                                                                     SpeciesDict[species]['OriginalLB'][rid] \
                                                                     ,* PrevSteadyState[rid]/(Kmax+PrevSteadyState[rid])
-              # if abs(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound) < 1e-10:
-              #     # s = numpy.sign(SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound)
-              #     SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid).lower_bound = 0.0
       return SpeciesDict
 
   def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
@@ -830,7 +827,9 @@ import time
           ICS[Name] = PrevSteadyState[Name]
           exchanges = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
           for rid in exchanges:
-              if abs(solution.fluxes[rid]/60.0) < 1e-12: # Because very small non-zero solutions may come up despite 0 LB
+              # Control for cobra fl
+              # Because very small non-zero solutions may come up despite 0 LB
+              if abs(solution.fluxes[rid]/60.0) < 1e-12: 
                   solution.fluxes[rid] = 0
               ParDef[rid + '_' + Name] = solution.fluxes[rid]/60.0
               ICS[rid] = PrevSteadyState[rid]
@@ -900,7 +899,7 @@ import time
 
           plt.xlabel('Time (minutes)')
       plt.ylabel('gdw')
-      plt.legend()
+      plt.legend(bbox_to_anchor=(1.2,1.2))
 
 
   def plotMetabolites(AllPoints):
@@ -923,18 +922,15 @@ import time
       plt.ylabel('mmol')
       plt.legend()
 
-  def simulateCommunity(SpeciesDict, Diet):
+  def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01):
       InitialValues = {}
       SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet)
       InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
       AllPoints = []
       StoreNegatives = set()
       P = InitialValues
-      MaxIter= 300
+      MaxIter= 200
       T0= 0
-      TEND = 2000
-      TSPAN = 60
-      Kmax = 0.01#0.01
       IndexStop = 1 
       i=0
 
@@ -965,32 +961,38 @@ import time
 
 #+RESULTS:
 :RESULTS:
-# Out[5]:
+# Out[14]:
 :END:
 
 ** Test:
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
     SpeciesDict = dict()
 
-    SpeciesDict = {'Sp1': {'File': './data/average-european-diet/Bacteroides_sp_1_1_14.xml', 'initAbundance': 0.01},
-   'Sp10': {'File': './data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
-    'initAbundance': 0.01},
-   'Sp2': {'File': './data/average-european-diet/Ruminococcus_flavefaciens_FD_1.xml',
-    'initAbundance': 0.01},
-   'Sp3': {'File': './data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
-    'initAbundance': 0.01},
-   'Sp4': {'File': './data/average-european-diet/Mycobacterium_avium_subsp_avium_ATCC_25291.xml',
-    'initAbundance': 0.01},
-   'Sp5': {'File': './data/average-european-diet/Actinomyces_viscosus_C505.xml',
-    'initAbundance': 0.01},
-   'Sp6': {'File': './data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
-    'initAbundance': 0.01},
-   'Sp7': {'File': './data/average-european-diet/Arcanobacterium_haemolyticum_DSM_20595.xml',
-    'initAbundance': 0.01},
-   'Sp8': {'File': './data/average-european-diet/Streptococcus_intermedius_JTH08.xml',
-    'initAbundance': 0.01},
-   'Sp9': {'File': './data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
-    'initAbundance': 0.01}} 
+    SpeciesDict = {
+        'Sp1': {'File': './data/average-european-diet/Bacteroides_sp_1_1_14.xml',
+                'initAbundance': 0.01},
+        'Sp2': {'File': './data/average-european-diet/Ruminococcus_flavefaciens_FD_1.xml',
+                'initAbundance': 0.01},
+        'Sp3': {'File': './data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
+                'initAbundance': 0.01},
+        'Sp4': {'File': './data/average-european-diet/Mycobacterium_avium_subsp_avium_ATCC_25291.xml',
+                'initAbundance': 0.01},
+        'Sp5': {'File': './data/average-european-diet/Actinomyces_viscosus_C505.xml',
+                'initAbundance': 0.01},
+        'Sp6': {'File': './data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
+                'initAbundance': 0.01},
+        'Sp7': {'File': './data/average-european-diet/Arcanobacterium_haemolyticum_DSM_20595.xml',
+                'initAbundance': 0.01},
+        'Sp8': {'File': './data/average-european-diet/Streptococcus_intermedius_JTH08.xml',
+                'initAbundance': 0.01},
+        'Sp9': {'File': './data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
+                'initAbundance': 0.01},
+        'Sp10': {'File': './data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
+                 'initAbundance': 0.01},
+        # 'Sp11': {'File': './data/average-european-diet/Escherichia_coli_O157_H7_str_Sakai.xml',
+        #          'initAbundance': 0.01},
+
+    } 
 
   # {
   #       # 'H': {'File':'../../Recon3D_301_SBML/Recon3D_301.xml',
@@ -1016,25 +1018,35 @@ import time
   #   }
 
     MediaDF = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
+    #MediaDF = pd.read_csv('./data/VMH_HighProtein.tsv', sep='\t')
 
     Output = simulateCommunity(SpeciesDict, MediaDF)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[6]:
+# Out[16]:
 :END:
 
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-7sp.png
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-withECO157.png
 plotBiomass(SpeciesDict, Output)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
 # Out[7]:
-[[file:./obipy-resources/2018-04-23-7sp.png]]
+[[file:./obipy-resources/2018-04-23-withECO157.png]]
 :END:
 
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-withECO157-HighProt.png
+plotBiomass(SpeciesDict, Output)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[11]:
+[[file:./obipy-resources/2018-04-23-withECO157-HighProt.png]]
+:END:
 
 - 500 iterations took 136 s
 - 300 iterations took 129s!
@@ -1043,11 +1055,352 @@ plotBiomass(SpeciesDict, Output)
 - 1000 iterations for 9 sp till 113min took 525s
 - 2000 iterations for 9 sp till 85.7 min took 1021s
 
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+plotBiomass(SpeciesDict, Output)
+#+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - 3ea91c73-2ea8-4c5b-b8d9-cef546eaa446
+# Out[15]:
+[[file:./obipy-resources/20398FEc.png]]
 :END:
+
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-plotMetabolites(AllPoints)
+plotBiomass(SpeciesDict, Output)
 #+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[17]:
+[[file:./obipy-resources/20398SOi.png]]
+:END:
+
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  for p in Output:
+      plt.plot(p['t'],p['Escherichia_coli'])
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[8]:
+[[file:./obipy-resources/20398RbD.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  for P in Output:
+      for k in P.keys():
+          plt.plot(P['t'], P[k])
+  plt.ylim([0,20])
+
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[42]:
+: (0, 20)
+[[file:./obipy-resources/20398ftE.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+Output[1].keys()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[22]:
+#+BEGIN_EXAMPLE
+  ['Actinomyces_viscosus',
+  'Arcanobacterium_haemolyticum',
+  'Bacteroides_sp',
+  'Bifidobacterium_longum',
+  'DM_2HYMEPH',
+  'DM_4HBA',
+  'DM_5DRIB',
+  'DM_5MTR',
+  'DM_GCALD',
+  'DM_clpn140__40__c__41__',
+  'DM_clpn160__40__c__41__',
+  'DM_clpn180__40__c__41__',
+  'DM_clpni16__40__c__41__',
+  'DM_dad_5',
+  'DM_dhptd__40__c__41__',
+  'DM_hcys_L__91__c__93__',
+  'DM_pheme__40__c__41__',
+  'DM_thmpp__40__c__41__',
+  'Desulfovibrio_piger',
+  'EX_12dgr180__40__e__41__',
+  'EX_12ppd_S__40__e__41__',
+  'EX_13ppd__40__e__41__',
+  'EX_26dap_M__40__e__41__',
+  'EX_2dmmq8__40__e__41__',
+  'EX_2obut__40__e__41__',
+  'EX_34dhphe__40__e__41__',
+  'EX_3dhcdchol__40__e__41__',
+  'EX_3dhchol__40__e__41__',
+  'EX_3hcinnm__40__e__41__',
+  'EX_3hpppn__40__e__41__',
+  'EX_3mop__40__e__41__',
+  'EX_4abut__40__e__41__',
+  'EX_4abz__40__e__41__',
+  'EX_4hbz__40__e__41__',
+  'EX_5htrp__40__e__41__',
+  'EX_7dhcdchol__40__e__41__',
+  'EX_7ocholate__40__e__41__',
+  'EX_C02528__40__e__41__',
+  'EX_Lcyst__40__e__41__',
+  'EX_Lkynr__91__e__93__',
+  'EX_Ser_Thr__40__e__41__',
+  'EX_T_antigen__40__e__41__',
+  'EX_Tn_antigen__40__e__41__',
+  'EX_Tyr_ggn__40__e__41__',
+  'EX_ac__40__e__41__',
+  'EX_acald__40__e__41__',
+  'EX_acgal__40__e__41__',
+  'EX_acgam__40__e__41__',
+  'EX_acnam__40__e__41__',
+  'EX_actn_R__40__e__41__',
+  'EX_ade__40__e__41__',
+  'EX_adn__40__e__41__',
+  'EX_adpcbl__40__e__41__',
+  'EX_ala_D__40__e__41__',
+  'EX_ala_L__40__e__41__',
+  'EX_alaasp__40__e__41__',
+  'EX_alagln__40__e__41__',
+  'EX_alaglu__40__e__41__',
+  'EX_alagly__40__e__41__',
+  'EX_alahis__40__e__41__',
+  'EX_alaleu__40__e__41__',
+  'EX_alathr__40__e__41__',
+  'EX_alltn__40__e__41__',
+  'EX_amp__40__e__41__',
+  'EX_arab_L__40__e__41__',
+  'EX_arabinogal__40__e__41__',
+  'EX_arabttr__40__e__41__',
+  'EX_arbt__40__e__41__',
+  'EX_arg_L__40__e__41__',
+  'EX_arsenb__40__e__41__',
+  'EX_asn_L__40__e__41__',
+  'EX_aso3__40__e__41__',
+  'EX_aso4__40__e__41__',
+  'EX_asp_L__40__e__41__',
+  'EX_biomass__40__e__41__',
+  'EX_btn__40__e__41__',
+  'EX_butso3__40__e__41__',
+  'EX_ca2__40__e__41__',
+  'EX_cbl1__40__e__41__',
+  'EX_cbl2__40__e__41__',
+  'EX_cd2__40__e__41__',
+  'EX_cellb__40__e__41__',
+  'EX_cgly__40__e__41__',
+  'EX_chol__40__e__41__',
+  'EX_cholate__40__e__41__',
+  'EX_chols__40__e__41__',
+  'EX_chtbs__40__e__41__',
+  'EX_cit__40__e__41__',
+  'EX_cl__40__e__41__',
+  'EX_co2__40__e__41__',
+  'EX_cobalt2__40__e__41__',
+  'EX_core2__40__e__41__',
+  'EX_core3__40__e__41__',
+  'EX_core4__40__e__41__',
+  'EX_core5__40__e__41__',
+  'EX_core6__40__e__41__',
+  'EX_core7__40__e__41__',
+  'EX_core8__40__e__41__',
+  'EX_crn__40__e__41__',
+  'EX_cro4__40__e__41__',
+  'EX_csn__40__e__41__',
+  'EX_ctbt__40__e__41__',
+  'EX_cu2__40__e__41__',
+  'EX_cys_L__40__e__41__',
+  'EX_cytd__40__e__41__',
+  'EX_dad_2__40__e__41__',
+  'EX_dcyt__40__e__41__',
+  'EX_ddca__40__e__41__',
+  'EX_dextrin__40__e__41__',
+  'EX_dgchol__40__e__41__',
+  'EX_dgsn__40__e__41__',
+  'EX_dhcinnm__40__e__41__',
+  'EX_dhpppn__40__e__41__',
+  'EX_din__40__e__41__',
+  'EX_dopa__40__e__41__',
+  'EX_drib__40__e__41__',
+  'EX_dsT_antigen__40__e__41__',
+  'EX_duri__40__e__41__',
+  'EX_etha__40__e__41__',
+  'EX_ethso3__40__e__41__',
+  'EX_etoh__40__e__41__',
+  'EX_f1a__40__e__41__',
+  'EX_fe2__40__e__41__',
+  'EX_fe3__40__e__41__',
+  'EX_fol__40__e__41__',
+  'EX_for__40__e__41__',
+  'EX_fru__40__e__41__',
+  'EX_fuc_L__40__e__41__',
+  'EX_fum__40__e__41__',
+  'EX_gal__40__e__41__',
+  'EX_galt__40__e__41__',
+  'EX_galur__40__e__41__',
+  'EX_gam__40__e__41__',
+  'EX_gbbtn__40__e__41__',
+  'EX_gcald__40__e__41__',
+  'EX_gchola__40__e__41__',
+  'EX_glc_D__40__e__41__',
+  'EX_glcn__40__e__41__',
+  'EX_glcur__40__e__41__',
+  'EX_gln_L__40__e__41__',
+  'EX_glu_L__40__e__41__',
+  'EX_gly__40__e__41__',
+  'EX_glyasn__40__e__41__',
+  'EX_glyasp__40__e__41__',
+  'EX_glyb__40__e__41__',
+  'EX_glyc3p__40__e__41__',
+  'EX_glyc__40__e__41__',
+  'EX_glycys__40__e__41__',
+  'EX_glygln__40__e__41__',
+  'EX_glyglu__40__e__41__',
+  'EX_glygn2__40__e__41__',
+  'EX_glygn4__40__e__41__',
+  'EX_glygn5__40__e__41__',
+  'EX_glyleu__40__e__41__',
+  'EX_glymet__40__e__41__',
+  'EX_glyphe__40__e__41__',
+  'EX_glypro__40__e__41__',
+  'EX_glytyr__40__e__41__',
+  'EX_gncore1__40__e__41__',
+  'EX_gncore2__40__e__41__',
+  'EX_gsn__40__e__41__',
+  'EX_gthrd__40__e__41__',
+  'EX_gua__40__e__41__',
+  'EX_h2__40__e__41__',
+  'EX_h2o__40__e__41__',
+  'EX_h2s__40__e__41__',
+  'EX_h__40__e__41__',
+  'EX_hdca__40__e__41__',
+  'EX_hexs__40__e__41__',
+  'EX_hg2__40__e__41__',
+  'EX_his_L__40__e__41__',
+  'EX_hista__40__e__41__',
+  'EX_hxan__40__e__41__',
+  'EX_ile_L__40__e__41__',
+  'EX_indole__40__e__41__',
+  'EX_inost__40__e__41__',
+  'EX_ins__40__e__41__',
+  'EX_inulin__40__e__41__',
+  'EX_isetac__40__e__41__',
+  'EX_isobut__40__e__41__',
+  'EX_isocapr__40__e__41__',
+  'EX_isoval__40__e__41__',
+  'EX_k__40__e__41__',
+  'EX_kesto__40__e__41__',
+  'EX_kestopt__40__e__41__',
+  'EX_kestottr__40__e__41__',
+  'EX_lac_D__40__e__41__',
+  'EX_lac_L__40__e__41__',
+  'EX_lcts__40__e__41__',
+  'EX_leu_L__40__e__41__',
+  'EX_lys_L__40__e__41__',
+  'EX_malt__40__e__41__',
+  'EX_malthx__40__e__41__',
+  'EX_malttr__40__e__41__',
+  'EX_man__40__e__41__',
+  'EX_mantr__40__e__41__',
+  'EX_melib__40__e__41__',
+  'EX_meoh__40__e__41__',
+  'EX_met_D__40__e__41__',
+  'EX_met_L__40__e__41__',
+  'EX_metala__40__e__41__',
+  'EX_metsox_R_L__40__e__41__',
+  'EX_metsox_S_L__40__e__41__',
+  'EX_mg2__40__e__41__',
+  'EX_mn2__40__e__41__',
+  'EX_mnl__40__e__41__',
+  'EX_mops__40__e__41__',
+  'EX_mqn7__40__e__41__',
+  'EX_mqn8__40__e__41__',
+  'EX_mso3__40__e__41__',
+  'EX_na1__40__e__41__',
+  'EX_nac__40__e__41__',
+  'EX_ncam__40__e__41__',
+  'EX_nh4__40__e__41__',
+  'EX_ni2__40__e__41__',
+  'EX_nmn__40__e__41__',
+  'EX_no2__40__e__41__',
+  'EX_no3__40__e__41__',
+  'EX_o2__40__e__41__',
+  'EX_ocdca__40__e__41__',
+  'EX_orn__40__e__41__',
+  'EX_oxa__40__e__41__',
+  'EX_pb__40__e__41__',
+  'EX_pect__40__e__41__',
+  'EX_phe_L__40__e__41__',
+  'EX_pheme__40__e__41__',
+  'EX_pi__40__e__41__',
+  'EX_pnto_R__40__e__41__',
+  'EX_ppa__40__e__41__',
+  'EX_ppi__40__e__41__',
+  'EX_pppn__40__e__41__',
+  'EX_pro_L__40__e__41__',
+  'EX_ptrc__40__e__41__',
+  'EX_pullulan1200__40__e__41__',
+  'EX_pydam__40__e__41__',
+  'EX_pydx__40__e__41__',
+  'EX_pydxn__40__e__41__',
+  'EX_pyr__40__e__41__',
+  'EX_q8__40__e__41__',
+  'EX_raffin__40__e__41__',
+  'EX_rib_D__40__e__41__',
+  'EX_ribflv__40__e__41__',
+  'EX_rmn__40__e__41__',
+  'EX_sT_antigen__40__e__41__',
+  'EX_sTn_antigen__40__e__41__',
+  'EX_salcn__40__e__41__',
+  'EX_sbt_D__40__e__41__',
+  'EX_ser_D__40__e__41__',
+  'EX_ser_L__40__e__41__',
+  'EX_sheme__40__e__41__',
+  'EX_so3__40__e__41__',
+  'EX_so4__40__e__41__',
+  'EX_spmd__40__e__41__',
+  'EX_srtn__40__e__41__',
+  'EX_strch1__40__e__41__',
+  'EX_strch2__40__e__41__',
+  'EX_stys__40__e__41__',
+  'EX_succ__40__e__41__',
+  'EX_sucr__40__e__41__',
+  'EX_sulfac__40__e__41__',
+  'EX_taur__40__e__41__',
+  'EX_tchola__40__e__41__',
+  'EX_tdchola__40__e__41__',
+  'EX_thm__40__e__41__',
+  'EX_thr_L__40__e__41__',
+  'EX_thymd__40__e__41__',
+  'EX_tma__40__e__41__',
+  'EX_tre__40__e__41__',
+  'EX_trp_L__40__e__41__',
+  'EX_trypta__40__e__41__',
+  'EX_tsul__40__e__41__',
+  'EX_ttdca__40__e__41__',
+  'EX_tym__40__e__41__',
+  'EX_tyr_L__40__e__41__',
+  'EX_ura__40__e__41__',
+  'EX_urea__40__e__41__',
+  'EX_uri__40__e__41__',
+  'EX_val_L__40__e__41__',
+  'EX_xan__40__e__41__',
+  'EX_xyl_D__40__e__41__',
+  'EX_zn2__40__e__41__',
+  'Exiguobacterium_aurantiacum',
+  'Lactobacillus_brevis',
+  'Mycobacterium_avium',
+  'Ruminococcus_flavefaciens',
+  'Streptococcus_intermedius',
+  'dreplication',
+  'pbiosynthesis',
+  'rtranscription',
+  'sink_PGPm1__91__c__93__',
+  'sink_dmbzid',
+  'sink_gthrd__40__c__41__']
+#+END_EXAMPLE
+:END:
