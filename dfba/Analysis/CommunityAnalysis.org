@@ -52,11 +52,12 @@ RELPATH = os.getcwd()
 SRCPATH = RELPATH + "/../../src/"
 sys.path.append(SRCPATH)
 import simulator
+import matplotlib.pyplot as plt
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[14]:
+# Out[11]:
 :END:
 
 Define file paths to bacterial species
@@ -107,6 +108,11 @@ Define file paths to bacterial species
     
 #+END_SRC
 
+#+RESULTS:
+:RESULTS:
+# Out[2]:
+:END:
+
 Define file paths to diet definitions
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -122,53 +128,90 @@ Define file paths to diet definitions
 
 #+RESULTS:
 :RESULTS:
-# Out[18]:
+# Out[3]:
 :END:
 
-*** High Fiber Diet
+*** Species responses to diets
+Define function to plot biomass trajectory of single species community
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-HighFiberDiet = pd.read_csv(RELPATH +'/' + DietDict['HighFiber'], sep='\t')
-Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, HighFiberDiet)
-simulatot.plotBiomass(Output)
+  def characterizeSingleSpecies(SingleSpeciesDict, DietDict):
+      sp_id = SingleSpeciesDict.keys()[0]
+      for diet in DietDict.keys():
+          DietDF = pd.read_csv(RELPATH +'/' + DietDict[diet], sep='\t')
+          Output, SpecDict = simulator.simulateCommunity(SingleSpeciesDict, DietDF, MaxIter=10)
+          T = []
+          Biomass = []
+          for P in Output:
+              T += list(P['t'])
+              Biomass += list(P[SpecDict[sp_id]['Name']])
+          plt.plot(T, Biomass, label=diet)
+      plt.legend()
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - 2647d89b-377b-46a4-b1a1-f18eee241bc7
+# Out[12]:
 :END:
 
-*** High Protein Diet
+Simulate single speciess
+
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-HighFiberDiet = pd.read_csv(RELPATH +'/' + DietDict['HighFiber'], sep='\t')
-Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, HighFiberDiet)
-simulatot.plotBiomass(Output)
+  for sp in SpeciesDict.keys():
+      plt.figure()
+      characterizeSingleSpecies({sp:SpeciesDict[sp]}, DietDict)
 #+END_SRC
 
-*** Vegetarian Diet
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-VegetarianDiet = pd.read_csv(RELPATH +'/' + DietDict['Vegetarian'], sep='\t')
-Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, VegetarianDiet)
-simulatot.plotBiomass(Output)
-#+END_SRC
+#+RESULTS:
+:RESULTS:
+# Out[13]:
+[[file:./obipy-resources/27488hg2.png]]
+:END:
 
-*** Vegan Diet
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-VeganDiet = pd.read_csv(RELPATH +'/' + DietDict['Vegan'], sep='\t')
-Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, VeganDiet)
-simulatot.plotBiomass(Output)
-#+END_SRC
+*** Community responses to diets
+**** High Fiber Diet
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ HighFiberDiet = pd.read_csv(RELPATH +'/' + DietDict['HighFiber'], sep='\t')
+ Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, HighFiberDiet)
+ simulator.plotBiomass(HighFibSpecDict, Output)
+ #+END_SRC
 
-*** Type 2 Diabetes Patient Diet
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-Type2DiabetesDiet = pd.read_csv(RELPATH +'/' + DietDict['Type2Diabetes'], sep='\t')
-Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, Type2DiabetesDiet)
-simulatot.plotBiomass(Output)
-#+END_SRC
+ #+RESULTS:
+ :RESULTS:
+ 0 - 2647d89b-377b-46a4-b1a1-f18eee241bc7
+ :END:
 
-*** Unhealthy Diet
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-UnhealthyDiet = pd.read_csv(RELPATH +'/' + DietDict['Unhealthy'], sep='\t')
-Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, UnhealthyDiet)
-simulatot.plotBiomass(Output)
-#+END_SRC
+**** High Protein Diet
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ HighProteinDiet = pd.read_csv(RELPATH +'/' + DietDict['HighProtein'], sep='\t')
+ Output, HighProteinSpecDict = simulator.simulateCommunity(SpeciesDict, HighProteinDiet)
+ simulator.plotBiomass(HighProteinSpecDict, Output)
+ #+END_SRC
+
+**** Vegetarian Diet
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ VegetarianDiet = pd.read_csv(RELPATH +'/' + DietDict['Vegetarian'], sep='\t')
+ Output, VegetarianSpecDict = simulator.simulateCommunity(SpeciesDict, VegetarianDiet)
+ simulator.plotBiomass(VegetarianSpecDict, Output)
+ #+END_SRC
+
+**** Vegan Diet
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ VeganDiet = pd.read_csv(RELPATH +'/' + DietDict['Vegan'], sep='\t')
+ Output, VeganSpecDict = simulator.simulateCommunity(SpeciesDict, VeganDiet)
+ simulator.plotBiomass(VeganSpecDict, Output)
+ #+END_SRC
+
+**** Type 2 Diabetes Patient Diet
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ Type2DiabetesDiet = pd.read_csv(RELPATH +'/' + DietDict['Type2Diabetes'], sep='\t')
+ Output, T2DSpecDict = simulator.simulateCommunity(SpeciesDict, Type2DiabetesDiet)
+ simulator.plotBiomass(T2DSpecDict, Output)
+ #+END_SRC
+
+**** Unhealthy Diet
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ UnhealthyDiet = pd.read_csv(RELPATH +'/' + DietDict['Unhealthy'], sep='\t')
+ Output, UnhealthySpecDict = simulator.simulateCommunity(SpeciesDict, UnhealthyDiet)
+ simulator.plotBiomass(UnhealthySpecDict, Output)
+ #+END_SRC
 
