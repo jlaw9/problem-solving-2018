@@ -95,7 +95,7 @@ def recomputeLowerBounds(SpeciesDict, PrevSteadyState, Kmax):
             SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid) \
                                                    .lower_bound = \
                                                                   SpeciesDict[species]['OriginalLB'][rid] \
-                                                                  ,* PrevSteadyState[rid]/(Kmax+PrevSteadyState[rid])
+                                                                  * PrevSteadyState[rid]/(Kmax+PrevSteadyState[rid])
     return SpeciesDict
 
 def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
