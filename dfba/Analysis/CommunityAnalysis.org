@@ -1,0 +1,174 @@
+* Objective
+To analyze the behavior of the microbial species individually and in the community. This analysis will give us insight into the extent of metabolic relationships in the community, as well as the dependence on the diet.
+
+** Investigating effect of diet
+
+*** Selection of species:
+528 AGORA bacterial species (including strains) were mapped to 412 Human Microbiome Project species. Single AGORA strains were selected where there were multiple that mapped. This resulted in a total of 412 models.
+
+Clustering was then performed on the consumed and secreted metabolites of these 412 and the top 20 clusters were selected. A single species is selected from each cluster that secretes all 8 of the immune-related metabolites (besides spermidine which is not in the 412) present in the 412 models.
+
+The dataset used is the Average European Diet from the AGORA dataset V1.02.
+
+The species are:
+1. Bacteroides_thetaiotaomicron_VPI_5482
+2. Bacteroides_sp_2_2_4
+3. Parabacteroides_johnsonii_DSM_18315
+4. Prevotella_oralis_ATCC_33269
+5. Eubacterium_eligens_ATCC_27750
+6. Slackia_exigua_ATCC_700122
+7. Dorea_longicatena_DSM_13814
+8. Clostridium_bartlettii_DSM_16795
+9. Streptococcus_sp_I_P16
+10. Blautia_hydrogenotrophica_DSM_10507
+11. Brevundimonas_bacteroides_DSM_4726
+12. Clostridium_hylemonae_DSM_15053
+13. Sutterella_wadsworthensis_3_1_45B
+14. Enterobacteriaceae_bacterium_9_2_54FAA
+15. Bacillus_megaterium_DSM319
+16. Peptostreptococcus_stomatis_DSM_17678
+17. Brachybacterium_paraconglomeratum_LC44
+18. Neisseria_elongata_subsp_glycolytica_ATCC_29315
+19. Rothia_aeria_F0474
+20. Staphylococcus_hominis_subsp_hominis_C80
+*** Diets used:
+All nutrition definitions were obtained from the Virtual Metabolic Human database on 2018-04-24. They are:
+1. High Fiber Diet
+2. High Protein Diet
+3. Vegetarian Diet
+4. Vegan Diet
+5. Type 2 Diabetes Patient Diet
+6. Unhealthy Diet
+** Results
+
+Import Headers
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+%matplotlib inline
+import os
+import sys
+import pandas as pd
+RELPATH = os.getcwd()
+SRCPATH = RELPATH + "/../../src/"
+sys.path.append(SRCPATH)
+import simulator
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[14]:
+:END:
+
+Define file paths to bacterial species
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  SpeciesDict = {
+      'sp1':{'File':'../data/average-european-diet/Bacteroides_thetaiotaomicron_VPI_5482.xml',
+             'initAbundance':0.01},
+      'sp2':{'File':'../data/average-european-diet/Bacteroides_sp_2_2_4.xml',
+             'initAbundance':0.01},
+      'sp3':{'File':'../data/average-european-diet/Parabacteroides_johnsonii_DSM_18315.xml',
+             'initAbundance':0.01},
+      'sp4':{'File':'../data/average-european-diet/Prevotella_oralis_ATCC_33269.xml',
+             'initAbundance':0.01},
+      'sp5':{'File':'../data/average-european-diet/Eubacterium_eligens_ATCC_27750.xml',
+             'initAbundance':0.01},
+      'sp6':{'File':'../data/average-european-diet/Slackia_exigua_ATCC_700122.xml',
+             'initAbundance':0.01},
+      'sp7':{'File':'../data/average-european-diet/Dorea_longicatena_DSM_13814.xml',
+             'initAbundance':0.01},
+      'sp8':{'File':'../data/average-european-diet/Clostridium_bartlettii_DSM_16795.xml',
+             'initAbundance':0.01},
+      'sp9':{'File':'../data/average-european-diet/Streptococcus_sp_I_P16.xml',
+             'initAbundance':0.01},
+      'sp10':{'File':'../data/average-european-diet/Blautia_hydrogenotrophica_DSM_10507.xml',
+              'initAbundance':0.01},
+      'sp11':{'File':'../data/average-european-diet/Brevundimonas_bacteroides_DSM_4726.xml',
+              'initAbundance':0.01},
+      'sp12':{'File':'../data/average-european-diet/Clostridium_hylemonae_DSM_15053.xml',
+              'initAbundance':0.01},
+      'sp13':{'File':'../data/average-european-diet/Sutterella_wadsworthensis_3_1_45B.xml',
+              'initAbundance':0.01},
+      'sp14':{'File':'../data/average-european-diet/Enterobacteriaceae_bacterium_9_2_54FAA.xml',
+              'initAbundance':0.01},
+      'sp15':{'File':'../data/average-european-diet/Bacillus_megaterium_DSM319.xml',
+              'initAbundance':0.01},
+      'sp16':{'File':'../data/average-european-diet/Peptostreptococcus_stomatis_DSM_17678.xml',
+              'initAbundance':0.01},
+      'sp17':{'File':'../data/average-european-diet/Brachybacterium_paraconglomeratum_LC44.xml',
+              'initAbundance':0.01},
+      'sp18':{'File':'../data/average-european-diet/Neisseria_elongata_subsp_glycolytica_ATCC_29315.xml',
+              'initAbundance':0.01},
+      'sp19':{'File':'../data/average-european-diet/Rothia_aeria_F0474.xml',
+              'initAbundance':0.01},
+      'sp20':{'File':'../data/average-european-diet/Staphylococcus_hominis_subsp_hominis_C80.xml',
+              'initAbundance':0.01}
+}
+    
+#+END_SRC
+
+Define file paths to diet definitions
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  DietDict = {
+      'HighFiber': '../data/diet-definitions/VMH_HighFiber.tsv',
+      'HighProtein': '../data/diet-definitions/VMH_HighProtein.tsv',
+      'Vegetarian': '../data/diet-definitions/VMH_Vegetarian.tsv',
+      'Vegan': '../data/diet-definitions/VMH_Vegan.tsv',
+      'Type2Diabetes': '../data/diet-definitions/VMH_Type2Diabetes.tsv',
+      'Unhealthy': '../data/diet-definitions/VMH_Unhealthy.tsv'
+      }
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[18]:
+:END:
+
+*** High Fiber Diet
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+HighFiberDiet = pd.read_csv(RELPATH +'/' + DietDict['HighFiber'], sep='\t')
+Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, HighFiberDiet)
+simulatot.plotBiomass(Output)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+0 - 2647d89b-377b-46a4-b1a1-f18eee241bc7
+:END:
+
+*** High Protein Diet
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+HighFiberDiet = pd.read_csv(RELPATH +'/' + DietDict['HighFiber'], sep='\t')
+Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, HighFiberDiet)
+simulatot.plotBiomass(Output)
+#+END_SRC
+
+*** Vegetarian Diet
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+VegetarianDiet = pd.read_csv(RELPATH +'/' + DietDict['Vegetarian'], sep='\t')
+Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, VegetarianDiet)
+simulatot.plotBiomass(Output)
+#+END_SRC
+
+*** Vegan Diet
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+VeganDiet = pd.read_csv(RELPATH +'/' + DietDict['Vegan'], sep='\t')
+Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, VeganDiet)
+simulatot.plotBiomass(Output)
+#+END_SRC
+
+*** Type 2 Diabetes Patient Diet
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+Type2DiabetesDiet = pd.read_csv(RELPATH +'/' + DietDict['Type2Diabetes'], sep='\t')
+Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, Type2DiabetesDiet)
+simulatot.plotBiomass(Output)
+#+END_SRC
+
+*** Unhealthy Diet
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+UnhealthyDiet = pd.read_csv(RELPATH +'/' + DietDict['Unhealthy'], sep='\t')
+Output, HighFibSpecDict = simulator.simulateCommunity(SpeciesDict, UnhealthyDiet)
+simulatot.plotBiomass(Output)
+#+END_SRC
+
