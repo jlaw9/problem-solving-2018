@@ -104,7 +104,9 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
         SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0] + '_' \
                                        + SpeciesDict[species]['SpeciesModel'].name.split(' ')[1].replace('.','')
-        exchange_list += SpeciesDict[species]['SpeciesModel'].exchanges
+        SpeciesDict[species]['exchanges'] = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
+        exchange_list += SpeciesDict[species]['exchanges']
+        
         Name=SpeciesDict[species]['Name']
         ICS[Name] = SpeciesDict[species]['initAbundance']
         ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value/60
@@ -125,41 +127,41 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             VarDef['I_E'] += ' + alpha_11 * ' + Name + '_M'
 
 
-        ParDef['Dilution'] = 0.002
-      
-        all_exchanges = set()
+    ParDef['Dilution'] = 0.002
+  
+    all_exchanges = set()
+    
+    for ex in exchange_list:
+        all_exchanges.add(ex)
         
-        for ex in exchange_list:
-            all_exchanges.add(ex.id)
+    for rid in all_exchanges:
+        VarDef[rid] = '- Dilution * ' + rid
+        ICS[rid] = 0.1 #10.0
+
+        if rid in mediaDerivedComponents.keys():
+            ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
+            VarDef[rid] += ' + ' +  rid + '_influx'
             
-        for rid in all_exchanges:
-            VarDef[rid] = '- Dilution * ' + rid
-            ICS[rid] = 0.1 #10.0
+        for species in SpeciesDict.keys():
+            if 'h2o' in rid: # Check to see if a unique metabolite is represented only once
+                print(species, rid)
+            if rid in SpeciesDict[species]['exchanges']:
+                Name = SpeciesDict[species]['Name']
+                ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
+                VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
 
-            if rid in mediaDerivedComponents.keys():
-                ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
-                VarDef[rid] += ' + ' +  rid + '_influx'
-                
-            for species in SpeciesDict.keys():
-                if 'h2o' in rid: # Check to see if a unique metabolite is represented only once
-                    print(species, rid)
-                if rid in [species_r.id for species_r in SpeciesDict[species]['SpeciesModel'].exchanges]:
-                    Name = SpeciesDict[species]['Name']
-                    ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
-                    VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
-
-        ModelDef = dst.args(name='Comunity',
-                            pars=ParDef,
-                            varspecs=VarDef,
-                            ics=ICS)
-        ModelDS = dst.Vode_ODEsystem(ModelDef)
-        print("Done!")
-        return (SpeciesDict, ModelDef, ModelDS)
-    # Functions for model updates
+    ModelDef = dst.args(name='Comunity',
+                        pars=ParDef,
+                        varspecs=VarDef,
+                        ics=ICS)
+    ModelDS = dst.Vode_ODEsystem(ModelDef)
+    print("Done!")
+    return (SpeciesDict, ModelDef, ModelDS)
+# Functions for model updates
 
 def recomputeLowerBounds(SpeciesDict, PrevSteadyState, Kmax):
     for species in SpeciesDict.keys():
-        for rid in [rxn.id for rxn in SpeciesDict[species]['SpeciesModel'].exchanges]:
+        for rid in SpeciesDict[species]['exchanges']:
             SpeciesDict[species]['SpeciesModel'].reactions.get_by_id(rid) \
                                                           .lower_bound = \
                                                                          SpeciesDict[species]['OriginalLB'][rid] \
@@ -183,8 +185,8 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
         if not cobraonly:
             ICS[Name + '_M'] = PrevSteadyState[Name+'_M']
             ICS[Name + '_BT'] = PrevSteadyState[Name+'_BT']
-        exchanges = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
-        for rid in exchanges:
+            
+        for rid in SpeciesDict[species]['exchanges']:
             # Control for cobra fl
             # Because very small non-zero solutions may come up despite 0 LB
             if abs(solution.fluxes[rid]/60.0) < 1e-12: 
@@ -333,7 +335,7 @@ def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01, Init
         List of PointSet objects and updated SpeciesDict
     """
     if not InitialValues:
-        SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet)
+        SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet,cobraonly)
         InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
     AllPoints = []
     StoreNegatives = set()
@@ -347,7 +349,7 @@ def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01, Init
     while T0 < TEND and i < MaxIter:
         i+=1
         print(str(i) + ' ' + str(T0))
-        SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P), Kmax)
+        SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P), Kmax, cobraonly)
 
         if T0+TSPAN > TEND:
             TSPAN = TEND - T0
@@ -365,6 +367,10 @@ def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01, Init
         AllPoints.append(P)
 
     print("This took " + str(time.clock() - clockstart) + "s")
+    print("\t\tSTATISTICS")
+    print("Variables\t\t"+str(len(Definition.varspecs.keys())))
+    print("Parameters\t\t"+str(len(Definition.pars.keys())))
+
     return(AllPoints, SpeciesDict, Definition)
 
 
