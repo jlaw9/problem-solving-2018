@@ -750,7 +750,7 @@ import time
       # name = name.replace(')', '__93__')
       return name
 
-  def defineDFBAModel(SpeciesDict , MediaDF):
+  def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
       print("Defining Dynamical model... \n")
       ParDef = dict()
       VarDef = dict()
@@ -760,6 +760,60 @@ import time
       for i, row in MediaDF.iterrows():
           N = cleanupname(row.Reaction)
           mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+      if not cobraonly:
+          variable_dict = {
+              # 'B_M':'B_MSource - (k_AD*B_M)/(k_3+B_M) - (k_AT*R_E*B_M)/(alpha_EM+R_E)-epsilon*B_M',
+              # 'B':'max(0,epsilon*B_M-T) -k_5*P*B',
+              'epsilon':'(epsilon_0-epsilon)/tau_p + f*P*(epsilon_max-epsilon)',
+              'R_E':'(k_1*P)/(1+alpha_RE*I_E)-mu_RE*R_E +(1/(1+alpha_RE*I_E))',#*(a_1*B_M*T_I)/(gamma_1+B_M)',
+              'I_E':'(k_IE*R_E)/(gamma_IE+R_E)-mu_IE*I_E', # +alpha_11*B_M',
+              'P':'(k_PE*max(0,R_E-T_RE))/(1+gamma_PE*I_E)-mu_4*P ' # +(k_PM*B)/(gamma_12+B)
+
+          }
+
+          parameter_dict = {
+              # 'B_MSource':2.2e6,#1.5e6,#
+              'k_AD':1.5e6/60,#
+              'k_3':6e6,
+              'k_AT':0.03/60,
+              'alpha_EM':0.18,
+              'epsilon_0':0.1,
+              'epsilon_max':0.21,
+              'tau_p':24*60,
+              'f':0.5,
+              'a_1':0.1,#
+              'gamma_1':5e6,
+              'k_1':0.5/60,
+              'alpha_RE':2,
+              'mu_RE':0.1/60,
+              'k_IE':50,#
+              'gamma_IE':10,
+              'alpha_11':0.1,
+              'mu_IE':1,
+              'T':1.1e6,
+              'k_5':25,
+              'k_PM':0.8,
+              'gamma_12':1.2e6,
+              'k_PE':0.002/60,
+              'T_RE':0.65,
+              'gamma_PE':1,
+          'mu_4':0.05/60,
+              'T_I':1e3 #????
+          }
+          #notebook
+          initial_conditions = {
+              #'B_M':1,
+              'epsilon':0.1,
+              'R_E':0,
+              'I_E':0,
+              #'B':1,
+              'P':1
+          }
+          ParDef.update(parameter_dict)
+          ICS.update(initial_conditions)
+          VarDef.update(variable_dict)
+
+          ParDef['K_diff'] = 1e-2
 
       for species in SpeciesDict.keys():
           print("\nReading species " + str(species))
@@ -771,9 +825,24 @@ import time
           + SpeciesDict[species]['SpeciesModel'].name.split(' ')[1].replace('.','')
           exchange_list += SpeciesDict[species]['SpeciesModel'].exchanges
           Name=SpeciesDict[species]['Name']
-          ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value/60
-          VarDef[Name] =  'mu_' + Name + ' * ' + Name + ' - ' + 'Dilution * ' + Name ### Biomass
           ICS[Name] = SpeciesDict[species]['initAbundance']
+          ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value/60
+          VarDef[Name] =  'mu_' + Name + ' * ' + Name + ' - ' + 'Dilution * ' + Name
+          if not cobraonly:
+              VarDef[Name] += '- K_diff *' + Name ### Biomass, 20% diffuse to mucosa
+              # 10^12 is a placeholder for mass/cell
+              VarDef[Name + '_M'] = 'K_diff* ' + Name +'* 10^7 - (k_AD * ' + Name + '_M) / (k_3+' + Name + '_M)'\
+                                    ' - (k_AT*R_E*' + Name + '_M)/(alpha_EM+R_E)-epsilon*' + Name + '_M'
+              ICS[Name + '_M'] = 0.1*SpeciesDict[species]['initAbundance']*1e5# 0.0 # This should be non zero
+
+              VarDef[Name + '_BT'] = 'max(0,epsilon*' + Name + '_M - T_'+ Name + ') - k_5 * P * ' + Name + '_BT'
+              ICS[Name + '_BT'] = 0.0
+              ParDef['T_' + Name] = 1.1e6
+
+              VarDef['P'] += '+ (k_PM *' + Name + '_BT / (gamma_12 + ' + Name + '_BT ))'
+              VarDef['R_E'] += '* (a_1 * '+ Name + '_M * T_I/(gamma_1 + '+Name +'_M))'
+              VarDef['I_E'] += ' + alpha_11 * ' + Name + '_M'
+
 
       ParDef['Dilution'] = 0.002
 
@@ -817,14 +886,23 @@ import time
                                                                     ,* PrevSteadyState[rid]/(Kmax+PrevSteadyState[rid])
       return SpeciesDict
 
-  def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState):
+  def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
       ParDef = {}
       ICS = {}
+      if not cobraonly:
+          ICS['P'] = PrevSteadyState['P']
+          ICS['R_E'] = PrevSteadyState['R_E']
+          ICS['I_E'] = PrevSteadyState['I_E']
+          ICS['epsilon'] = PrevSteadyState['epsilon']
+
       for species in SpeciesDict:
           solution = SpeciesDict[species]['SpeciesModel'].optimize()
           Name = SpeciesDict[species]['Name']
           ParDef['mu_' + Name] = solution.objective_value/60.0
           ICS[Name] = PrevSteadyState[Name]
+          if not cobraonly:
+              ICS[Name + '_M'] = PrevSteadyState[Name+'_M']
+              ICS[Name + '_BT'] = PrevSteadyState[Name+'_BT']
           exchanges = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
           for rid in exchanges:
               # Control for cobra fl
@@ -836,13 +914,14 @@ import time
       ModelDS.set(pars=ParDef, ics=ICS)
       return ModelDS
 
-  def update(SpeciesDict, ModelDS, PrevSteadyState, Kmax):
+  def update(SpeciesDict, ModelDS, PrevSteadyState, Kmax, cobraonly):
       UpdatedSpeciesDict = recomputeLowerBounds(SpeciesDict,
                                                 PrevSteadyState, Kmax)
 
       UpdatedDynamicModel = updateFluxParameters(UpdatedSpeciesDict,
                                                  ModelDS,
-                                                 PrevSteadyState)
+                                                 PrevSteadyState,
+                                                 cobraonly)
       return(UpdatedSpeciesDict, UpdatedDynamicModel)
 
   def get_ss(PointSet):
@@ -855,7 +934,7 @@ import time
       IndexStop = len(PointSet['t'])
 
       for variable in PointSet.keys():
-          if any(PointSet[variable] < 0.0): # checking only final Tpoint, b/c monotonic
+          if any(PointSet[variable] < 0.0):
               varIndex = next((index for index,value in enumerate(PointSet[variable]) if value < 0), None)
               if varIndex < IndexStop:
                   # Update the index for the first negative crossing
@@ -901,6 +980,48 @@ import time
       plt.ylabel('gdw')
       plt.legend(bbox_to_anchor=(1.2,1.2))
 
+  def plotBiomassInMucosa(SpeciesDict, AllPoints):
+      TimePoints={}
+      TimePoints['t'] =[]
+
+      for P in AllPoints:
+          TimePoints['t'] += list(P['t'])
+
+      for sp in SpeciesDict.keys():
+          Name = SpeciesDict[sp]['Name']
+          TimePoints[Name+'_M'] = []
+          for P in AllPoints:
+              TimePoints[Name+'_M']+=list(P[Name+'_M'])
+
+      for k in TimePoints.keys():
+          if k != 't':
+              plt.plot(TimePoints['t'], TimePoints[k], label = k)
+
+          plt.xlabel('Time (minutes)')
+      plt.ylabel('gdw')
+      plt.legend(bbox_to_anchor=(1.2,1.2))
+
+  def plotBiomassInBT(SpeciesDict, AllPoints):
+      TimePoints={}
+      TimePoints['t'] =[]
+
+      for P in AllPoints:
+          TimePoints['t'] += list(P['t'])
+
+      for sp in SpeciesDict.keys():
+          Name = SpeciesDict[sp]['Name']
+          TimePoints[Name+'_BT'] = []
+          for P in AllPoints:
+              TimePoints[Name+'_BT']+=list(P[Name+'_BT'])
+
+      for k in TimePoints.keys():
+          if k != 't':
+              plt.plot(TimePoints['t'], TimePoints[k], label = k)
+
+          plt.xlabel('Time (minutes)')
+      plt.ylabel('gdw')
+      plt.legend(bbox_to_anchor=(1.2,1.2))
+
 
   def plotMetabolites(AllPoints):
       TimePoints={}
@@ -922,15 +1043,16 @@ import time
       plt.ylabel('mmol')
       plt.legend()
 
-  def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01):
-      InitialValues = {}
-      SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet)
-      InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
+  def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01,InitialValues = {}, cobraonly=False):
+      
+      if not InitialValues:
+          SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet)
+          InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
       AllPoints = []
       StoreNegatives = set()
       P = InitialValues
-      MaxIter= 200
       T0= 0
+      TSPAN = 60
       IndexStop = 1 
       i=0
 
@@ -938,7 +1060,7 @@ import time
       while T0 < TEND and i < MaxIter:
           i+=1
           print(str(i) + ' ' + str(T0))
-          SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P), Kmax)
+          SpeciesDict, ModelDS = update(SpeciesDict, ModelDS, get_ss(P), Kmax, cobraonly)
 
           if T0+TSPAN > TEND:
               TSPAN = TEND - T0
@@ -956,12 +1078,12 @@ import time
           AllPoints.append(P)
 
       print("This took " + str(time.clock() - clockstart) + "s")
-      return AllPoints
+      return(AllPoints, SpeciesDict, Definition)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[14]:
+# Out[2]:
 :END:
 
 ** Test:
@@ -969,73 +1091,52 @@ import time
     SpeciesDict = dict()
 
     SpeciesDict = {
-        'Sp1': {'File': './data/average-european-diet/Bacteroides_sp_1_1_14.xml',
-                'initAbundance': 0.01},
-        'Sp2': {'File': './data/average-european-diet/Ruminococcus_flavefaciens_FD_1.xml',
-                'initAbundance': 0.01},
-        'Sp3': {'File': './data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
-                'initAbundance': 0.01},
-        'Sp4': {'File': './data/average-european-diet/Mycobacterium_avium_subsp_avium_ATCC_25291.xml',
-                'initAbundance': 0.01},
-        'Sp5': {'File': './data/average-european-diet/Actinomyces_viscosus_C505.xml',
-                'initAbundance': 0.01},
-        'Sp6': {'File': './data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
-                'initAbundance': 0.01},
-        'Sp7': {'File': './data/average-european-diet/Arcanobacterium_haemolyticum_DSM_20595.xml',
-                'initAbundance': 0.01},
-        'Sp8': {'File': './data/average-european-diet/Streptococcus_intermedius_JTH08.xml',
-                'initAbundance': 0.01},
-        'Sp9': {'File': './data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
-                'initAbundance': 0.01},
+        # 'Sp1': {'File': './data/average-european-diet/Bacteroides_sp_1_1_14.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp2': {'File': './data/average-european-diet/Ruminococcus_flavefaciens_FD_1.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp3': {'File': './data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp4': {'File': './data/average-european-diet/Mycobacterium_avium_subsp_avium_ATCC_25291.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp5': {'File': './data/average-european-diet/Actinomyces_viscosus_C505.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp6': {'File': './data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp7': {'File': './data/average-european-diet/Arcanobacterium_haemolyticum_DSM_20595.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp8': {'File': './data/average-european-diet/Streptococcus_intermedius_JTH08.xml',
+        #         'initAbundance': 0.01},
+        # 'Sp9': {'File': './data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
+        #         'initAbundance': 0.01},
         'Sp10': {'File': './data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
                  'initAbundance': 0.01},
-        # 'Sp11': {'File': './data/average-european-diet/Escherichia_coli_O157_H7_str_Sakai.xml',
-        #          'initAbundance': 0.01},
+        'Sp11': {'File': './data/average-european-diet/Escherichia_coli_O157_H7_str_Sakai.xml',
+                 'initAbundance': 0.01},
 
     } 
 
-  # {
-  #       # 'H': {'File':'../../Recon3D_301_SBML/Recon3D_301.xml',
-  #       #         'initAbundance': 0.01},
-  #       'Sp1': {'File':'./data/average-european-diet/Bacteroides_sp_1_1_14.xml',
-  #               'initAbundance': 0.01},
-  #       'Sp2': {'File':'./data/average-european-diet/Actinomyces_urogenitalis_DSM_15434.xml',
-  #               'initAbundance': 0.01},
-  #       'Sp3': {'File':'./data/average-european-diet/Bifidobacterium_longum_infantis_ATCC_15697.xml',
-  #               'initAbundance': 0.01},
-  #       'Sp4': {'File':'./data/average-european-diet/Desulfovibrio_piger_ATCC_29098.xml',
-  #               'initAbundance': 0.01},
-  #       'Sp5': {'File':'./data/average-european-diet/Exiguobacterium_aurantiacum_DSM_6208.xml',
-  #               'initAbundance': 0.01},
-  #       'Sp6': {'File':'./data/average-european-diet/Lactobacillus_brevis_ATCC_367.xml',
-  #                  'initAbundance': 0.01},
-  #       'Sp7': {'File':'./data/average-european-diet/Bacteroides_ovatus_ATCC_8483.xml',
-  #       'initAbundance': 0.01},
-  #       # 'Sp8': {'File':'./data/average-european-diet/Bacteroides_vulgatus_ATCC_8482.xml',
-  #       # 'initAbundance': 0.01},
-  #       # 'Sp9': {'File':'./data/average-european-diet/Bacteroides_fragilis_NCTC_9343.xml',
-  #       # 'initAbundance': 0.01},
-  #   }
-
-    MediaDF = pd.read_csv('./data/VMH_HighFiber.tsv', sep='\t')
+    MediaDF = pd.read_csv('./data/diet-definitions/VMH_HighFiber.tsv', sep='\t')
     #MediaDF = pd.read_csv('./data/VMH_HighProtein.tsv', sep='\t')
 
-    Output = simulateCommunity(SpeciesDict, MediaDF)
+    Output, SpecieDict, ModDefinition = simulateCommunity(SpeciesDict, MediaDF, MaxIter=10, cobraonly=True)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[16]:
+# Out[5]:
 :END:
 
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-withECO157.png
-plotBiomass(SpeciesDict, Output)
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  # plotBiomassInMucosa(SpeciesDict, Output )
+  plotBiomass(SpeciesDict, Output)
+  # plotBiomassInBT(SpeciesDict, Output )
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[7]:
-[[file:./obipy-resources/2018-04-23-withECO157.png]]
+# Out[6]:
+[[file:./obipy-resources/59195jt.png]]
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t :ipyfile ./obipy-resources/2018-04-23-withECO157-HighProt.png
@@ -1404,3 +1505,23 @@ Output[1].keys()
   'sink_gthrd__40__c__41__']
 #+END_EXAMPLE
 :END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+
+A ={'b':2}
+B = {'a':1}
+B.update(A)
+B
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[5]:
+: {'a': 1, 'b': 2}
+:END:
+
+** <2018-04-25 Wed>
+- Map the 8 metabolites to FBA model
+- Debug large community simulations
+- Need to make the community, 
+
