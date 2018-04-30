@@ -224,15 +224,15 @@ def checkNegativeMetabolites(PointSet, StoreNegatives):
 
     if IndexStop < len(PointSet['t']) and IndexStop > 0:
         P_tilFirstNeg={}
-        if len(PointSet[variable] > IndexStop+5):
-            Extension = 5
-        elif len(PointSet[variable] > IndexStop+2):
-            Extension = 2
-        else:
-            Extension = 0
+#        if len(PointSet[variable] > IndexStop+5):
+#            Extension = 5
+#        elif len(PointSet[variable] > IndexStop+2):
+#            Extension = 2
+#        else:
+#            Extension = 0
         for variable in PointSet.keys():
             P_tilFirstNeg[variable]=PointSet[variable][:IndexStop]
-            if PointSet[variable][IndexStop + Extension] < 0.0:
+            if PointSet[variable][IndexStop] < 0.0: #+ Extension]
                 P_tilFirstNeg[variable][IndexStop - 1] = 0
                 StoreNegatives.add(variable)
                 print('\t' + str(variable) +  'is 0 at ' + str( PointSet['t'][IndexStop]))
