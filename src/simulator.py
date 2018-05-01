@@ -40,7 +40,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
     mediaDerivedComponents = {}
     for i, row in MediaDF.iterrows():
         N = cleanupname(row.Reaction)
-        mediaDerivedComponents[N] = row['Flux Value'] / (24.0*60.0) # Per minute
+        mediaDerivedComponents[N] = row['Flux Value'] / (24.0) # Per minute
         
     for species in SpeciesDict.keys():
         print("\nReading species " + str(species))
@@ -55,17 +55,13 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         
         Name=SpeciesDict[species]['Name']
         ICS[Name] = SpeciesDict[species]['initAbundance']
-        ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value/60
+        ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value
         VarDef[Name] =  'mu_' + Name + ' * ' + Name + ' - ' + 'Dilution * ' + Name
 
     if not cobraonly:
         variable_dict = {
-            #'B_L': 'B_MSource - (k_max*gamma_dif^n1/(gamma_dif^n1+(E*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*(B_L/V_L - B_M/V_M) - d_BL*B_L',
-            'R_E': '(a_1*B_M*(k_1*P+T_I))/((gamma_1+B_M)*(1+alpha_RE*I_E))-mu_RE*R_E',
-            'I_E': '(k_IE*R_E)/(gamma_IE+R_E)+alpha_11*B_M-mu_IE*I_E',
             'P':'((k_PM*B)/(gamma_12+B))*(delta_Po+delta_PI*P^np/(P^np+gamma_PI^np))*(1-V_S2*S/(S+gamma_s2))+(k_PE*max(0,R_E-T_RE))*Ep/(1+gamma_PE*I_E)-mu_4*P',
             'Ep': 'mu_E*(Ep/(Ep+gamma_E))-(d1+d2*max(0,P-V_S1*S/(S+gamma_s1)-T_EP))*Ep',
-            
         }
         
         
@@ -137,13 +133,6 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             'P':0,
             'Ep':3.5
         }
-        #notebook
-        initial_conditions = {
-            'R_E':0,
-            'I_E':0,
-            'B':1,
-            'P':1
-        }
         
         ParDef.update(parameter_dict)
         ICS.update(initial_conditions)
@@ -151,23 +140,19 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
 
         List_of_names = [ SpeciesDict[sp]['Name'] for sp in SpeciesDict.keys()]
         sum_of_species = ''
-        for n in List_of_names:
-            sum_of_species += ' + ' + n + '_M'
-        print(sum_of_species)
-
-        VarDef['B'] = 'max(0, ((epsilon_0+epsilon_E*(E_max-Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*(0' + sum_of_species +')-T)) - k_5 * P * B + mu_B * B'
-        
-        for name in List_of_names:    
-            VarDef[Name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ Name +'/V_L - ' + Name +'_M/V_M)'
+        for name in List_of_names:
+            sum_of_species += ' + ' + name + '_M'
+            VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'/V_L - ' + name +'_M/V_M)'
             # 10^12 is a placeholder for mass/cell
-            ICS[Name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
+            ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
             
-            VarDef[Name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
-                            '*(' + Name + '/V_L- ' + Name + '_M/V_M) - (k_AD * ' + Name + '_M)/(k_3+' + sum_of_species +')'\
-                            ' - (k_AT*R_E*'+ Name+'_M)*Ep/(alpha_EM + R_E)'\
-                            ' - (epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*'+Name+'_M'
-            
-
+            VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
+                            '*(' + name + '/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
+                            ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
+                            ' - (epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*'+name+'_M'
+        VarDef['B'] = 'max(0, ((epsilon_0+epsilon_E*(E_max-Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*(0' + sum_of_species +')-T)) - k_5 * P * B + mu_B * B'
+        VarDef['R_E'] = '(a_1*('+sum_of_species+')*(k_1*P+T_I))/((gamma_1+('+sum_of_species+'))*(1+alpha_RE*I_E))-mu_RE*R_E'
+        VarDef['I_E'] = '(k_IE*R_E)/(gamma_IE+R_E)+alpha_11*('+sum_of_species+')-mu_IE*I_E'
 
     ParDef['Dilution'] = 0.002
   
@@ -178,7 +163,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         
     for rid in all_exchanges:
         VarDef[rid] = '- Dilution * ' + rid
-        ICS[rid] = 0.1 #10.0
+        ICS[rid] = 1.0 #0.1 #10.0
 
         if rid in mediaDerivedComponents.keys():
             ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
@@ -189,7 +174,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
                 print(species, rid)
             if rid in SpeciesDict[species]['exchanges']:
                 Name = SpeciesDict[species]['Name']
-                ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]/60.0
+                ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]
                 VarDef[rid] += ' + ' +  rid + '_' + Name + ' * ' + Name
 
     ModelDef = dst.args(name='Comunity',
@@ -217,14 +202,14 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
         ICS['P'] = PrevSteadyState['P']
         ICS['R_E'] = PrevSteadyState['R_E']
         ICS['I_E'] = PrevSteadyState['I_E']
-        ICS['epsilon'] = PrevSteadyState['epsilon']
+#        ICS['epsilon'] = PrevSteadyState['epsilon']
         ICS['Ep'] = PrevSteadyState['Ep']
         ICS['B'] = PrevSteadyState['B']
 
     for species in SpeciesDict:
         solution = SpeciesDict[species]['SpeciesModel'].optimize()
         Name = SpeciesDict[species]['Name']
-        ParDef['mu_' + Name] = solution.objective_value/60.0
+        ParDef['mu_' + Name] = solution.objective_value
         ICS[Name] = PrevSteadyState[Name]
         if not cobraonly:
             ICS[Name + '_M'] = PrevSteadyState[Name+'_M']
@@ -232,9 +217,9 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
         for rid in SpeciesDict[species]['exchanges']:
             # Control for cobra fl
             # Because very small non-zero solutions may come up despite 0 LB
-            if abs(solution.fluxes[rid]/60.0) < 1e-12: 
+            if abs(solution.fluxes[rid]) < 1e-12: 
                 solution.fluxes[rid] = 0
-            ParDef[rid + '_' + Name] = solution.fluxes[rid]/60.0
+            ParDef[rid + '_' + Name] = solution.fluxes[rid]
             ICS[rid] = PrevSteadyState[rid]
             ModelDS.set(pars=ParDef, ics=ICS)
     return ModelDS
@@ -367,7 +352,7 @@ def plotMetabolites(AllPoints):
     plt.ylabel('mmol')
     plt.legend()
 
-def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01, InitialValues = {}, cobraonly=False):
+def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, InitialValues = {}, cobraonly=False):
     """
     Simulates the microbial community.
     Arguments:
@@ -384,7 +369,7 @@ def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01, Init
     StoreNegatives = set()
     P = InitialValues
     T0 = 0
-    TSPAN = 60
+    TSPAN = 1
     IndexStop = 1 
     i = 0
 
@@ -404,9 +389,9 @@ def simulateCommunity(SpeciesDict, Diet, TEND=2000, MaxIter=200, Kmax=0.01, Init
         P, StoreNegatives = checkNegativeMetabolites(P, StoreNegatives) 
         T0 = P['t'][-1]
         if OldT != T0:
-            TSPAN = 1.0
+            TSPAN = 0.1
         else:
-            TSPAN = 60
+            TSPAN = 1
         AllPoints.append(P)
 
     print("This took " + str(time.clock() - clockstart) + "s")

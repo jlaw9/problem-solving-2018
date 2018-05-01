@@ -1559,24 +1559,60 @@ B
        count += 1
 
    Diet = pd.read_csv(DietDict['Unhealthy'], sep='\t')
-   Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=1)
-   xsimulator.plotBiomass( SpecDict, Output)
+   Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=30)
+
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - 53816e5e-b534-4479-8be3-2c39536c586f
+0 - 897c8d4c-e78b-45e6-a5d6-271522f20e7c
 :END:
+
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-  P=[]
-  t=[]
-  for O in Output:
-      P += O['P']
-      t += O['t']
-  plt.plot(t,P)
+ simulator.plotBiomass( SpecDict, Output)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - a22004a4-3d92-4922-ada2-42cf4bedcf93
+# Out[8]:
+[[file:./obipy-resources/9286T0g.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  ImmuneVars = {'P':[], 'B':[], 'I_E':[], 'R_E':[]}
+  Time = []
+  for O in Output:
+      for iv in ImmuneVars.keys():
+          ImmuneVars[iv] += list(O[iv])
+      Time += list(O['t'])
+  for iv in ImmuneVars.keys():
+      plt.plot(Time,ImmuneVars[iv], label=iv)
+  plt.legend()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[23]:
+: <matplotlib.legend.Legend at 0x7fda2d4a5150>
+[[file:./obipy-resources/92866Sz.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+len(Time)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[22]:
+: 11280
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+Time
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[15]:
+: []
 :END:
