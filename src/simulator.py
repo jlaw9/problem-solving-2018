@@ -63,8 +63,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             'P':'((k_PM*B)/(gamma_12+B))*(delta_Po+delta_PI*P^np/(P^np+gamma_PI^np))*(1-V_S2*S/(S+gamma_s2))+(k_PE*max(0,R_E-T_RE))*Ep/(1+gamma_PE*I_E)-mu_4*P',
             'Ep': 'mu_E*(Ep/(Ep+gamma_E))-(d1+d2*max(0,P-V_S1*S/(S+gamma_s1)-T_EP))*Ep',
         }
-        
-        
+        scale = 0.2
         parameter_dict = {
             'V_L': 1,
             'V_M':0.5,
@@ -89,42 +88,39 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             'alpha_11':0.1e-7,
             'mu_IE':1,
             'T':1.1e6,
-            'k_5':5,
-            'k_PM':0.05,
+            'k_5':8,
+            'k_PM':0.025/scale,
             'gamma_12':1.2e5,
-            'k_PE':0.001,
+            'k_PE':0.001/scale,
             'T_RE':0.65,
             'gamma_PE':1,
-            'mu_4':0.05,
-            'T_I':1,
-            
-            'mu_E': 0.5/4, #mu_E,
-            'gamma_E':0.5, #gamma_E,
-            'd1': 0.125/4, #d1,
-            'd2': 0.625/10,
-            'E_max': 0.4375,
-            
+            'mu_4':0.05/scale,
+            'T_I':1, 
+            'mu_E': mu_E,
+            'gamma_E':gamma_E,
+            'd1': d1,
+            'd2': 0.625/10/scale,
+            'E_max': E_max,
             'epsilon_E': 0.1,
-            'mu_B':0.05,
-            'V_S1' : 0.05,
+            'mu_B':0.0,
+            'V_S1' : 0.1,
             'T_EP' : 0.05,
             'gamma_s1' : 1,
             'V_S2' : 0.4,
             'gamma_s2' : 1,
-            'delta_muc': 0.5,
+            'delta_muc': 0.3,
             'alpha_muc': 1,
-            'k_max': 8,
-            'gamma_dif': 1,
+            'k_max': 5,
+            'gamma_dif': 0.75,
             'S' : 0,
-            'n1': 3,
+            'n1': 2,
             'ne' : 2,
             'np': 2,
             'k_epsilon' : 1,
             'delta_PI' : 1.5,
             'delta_Po' : 0.5,
-            'gamma_PI' :0.45
+            'gamma_PI' :0.3
         }
-
 
         initial_conditions = {
             'R_E':0,
