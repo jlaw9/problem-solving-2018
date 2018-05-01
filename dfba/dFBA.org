@@ -1525,3 +1525,58 @@ B
 - Debug large community simulations
 - Need to make the community, 
 
+* Testing Integrated model
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+   %matplotlib inline
+   import cobra
+   import PyDSTool as dst
+   import pandas as pd
+   import matplotlib.pyplot as plt
+   import copy
+   import sys
+   sys.path.append("../src/")
+   import simulator
+   ListOfSpecies = [
+       'Brachybacterium_paraconglomeratum_LC44',
+       'Neisseria_elongata_subsp_glycolytica_ATCC_29315',
+       'Rothia_aeria_F0474',
+       'Staphylococcus_hominis_subsp_hominis_C80'
+   ]
+
+   DietDict = {
+       'HighFiber': './data/diet-definitions/VMH_HighFiber.tsv',
+       'HighProtein': './data/diet-definitions/VMH_HighProtein.tsv',
+       'Vegetarian': './data/diet-definitions/VMH_Vegetarian.tsv',
+       'Vegan': './data/diet-definitions/VMH_Vegan.tsv',
+       'Type2Diabetes': './data/diet-definitions/VMH_Type2Diabetes.tsv',
+       'Unhealthy': './data/diet-definitions/VMH_Unhealthy.tsv'
+   }
+
+   SpeciesDict = {}
+   count = 0.0
+   for s in ListOfSpecies:
+       SpeciesDict['sp_' + str(count)] = {'File': './data/average-european-diet/' + s + '.xml', 'initAbundance':0.01}
+       count += 1
+
+   Diet = pd.read_csv(DietDict['Unhealthy'], sep='\t')
+   Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=1)
+   xsimulator.plotBiomass( SpecDict, Output)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+0 - 53816e5e-b534-4479-8be3-2c39536c586f
+:END:
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  P=[]
+  t=[]
+  for O in Output:
+      P += O['P']
+      t += O['t']
+  plt.plot(t,P)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+0 - a22004a4-3d92-4922-ada2-42cf4bedcf93
+:END:
