@@ -1525,3 +1525,94 @@ B
 - Debug large community simulations
 - Need to make the community, 
 
+* Testing Integrated model
+ #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+   %matplotlib inline
+   import cobra
+   import PyDSTool as dst
+   import pandas as pd
+   import matplotlib.pyplot as plt
+   import copy
+   import sys
+   sys.path.append("../src/")
+   import simulator
+   ListOfSpecies = [
+       'Brachybacterium_paraconglomeratum_LC44',
+       'Neisseria_elongata_subsp_glycolytica_ATCC_29315',
+       'Rothia_aeria_F0474',
+       'Staphylococcus_hominis_subsp_hominis_C80'
+   ]
+
+   DietDict = {
+       'HighFiber': './data/diet-definitions/VMH_HighFiber.tsv',
+       'HighProtein': './data/diet-definitions/VMH_HighProtein.tsv',
+       'Vegetarian': './data/diet-definitions/VMH_Vegetarian.tsv',
+       'Vegan': './data/diet-definitions/VMH_Vegan.tsv',
+       'Type2Diabetes': './data/diet-definitions/VMH_Type2Diabetes.tsv',
+       'Unhealthy': './data/diet-definitions/VMH_Unhealthy.tsv'
+   }
+
+   SpeciesDict = {}
+   count = 0.0
+   for s in ListOfSpecies:
+       SpeciesDict['sp_' + str(count)] = {'File': './data/average-european-diet/' + s + '.xml', 'initAbundance':0.01}
+       count += 1
+
+   Diet = pd.read_csv(DietDict['Unhealthy'], sep='\t')
+   Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=30)
+
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+0 - 897c8d4c-e78b-45e6-a5d6-271522f20e7c
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ simulator.plotBiomass( SpecDict, Output)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[8]:
+[[file:./obipy-resources/9286T0g.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  ImmuneVars = {'P':[], 'B':[], 'I_E':[], 'R_E':[]}
+  Time = []
+  for O in Output:
+      for iv in ImmuneVars.keys():
+          ImmuneVars[iv] += list(O[iv])
+      Time += list(O['t'])
+  for iv in ImmuneVars.keys():
+      plt.plot(Time,ImmuneVars[iv], label=iv)
+  plt.legend()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[23]:
+: <matplotlib.legend.Legend at 0x7fda2d4a5150>
+[[file:./obipy-resources/92866Sz.png]]
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+len(Time)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[22]:
+: 11280
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+Time
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[15]:
+: []
+:END:
