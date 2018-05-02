@@ -135,9 +135,8 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         VarDef.update(variable_dict)
 
         List_of_names = [ SpeciesDict[sp]['Name'] for sp in SpeciesDict.keys()]
-        sum_of_species = ''
+        sum_of_species = ''.join([' + ' + name + '_M' for name in List_of_names])
         for name in List_of_names:
-            sum_of_species += ' + ' + name + '_M'
             VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'/V_L - ' + name +'_M/V_M)'
             # 10^12 is a placeholder for mass/cell
             ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
@@ -215,7 +214,7 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
             # Because very small non-zero solutions may come up despite 0 LB
             if abs(solution.fluxes[rid]) < 1e-12: 
                 solution.fluxes[rid] = 0
-            `ParDef[rid + '_' + Name] = solution.fluxes[rid]
+            ParDef[rid + '_' + Name] = solution.fluxes[rid]
             ICS[rid] = PrevSteadyState[rid]
             ModelDS.set(pars=ParDef, ics=ICS)
     return ModelDS
