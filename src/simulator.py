@@ -215,7 +215,7 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
             # Because very small non-zero solutions may come up despite 0 LB
             if abs(solution.fluxes[rid]) < 1e-12: 
                 solution.fluxes[rid] = 0
-            ParDef[rid + '_' + Name] = solution.fluxes[rid]
+            `ParDef[rid + '_' + Name] = solution.fluxes[rid]
             ICS[rid] = PrevSteadyState[rid]
             ModelDS.set(pars=ParDef, ics=ICS)
     return ModelDS
