@@ -140,8 +140,8 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'/V_L - ' + name +'_M/V_M)'
             # 10^12 is a placeholder for mass/cell
             ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
-            
-            VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
+        for name in List_of_names: #****
+             VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
                             '*(' + name + '/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
                             ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                             ' - (epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*'+name+'_M'
@@ -200,7 +200,6 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
 #        ICS['epsilon'] = PrevSteadyState['epsilon']
         ICS['Ep'] = PrevSteadyState['Ep']
         ICS['B'] = PrevSteadyState['B']
-
     for species in SpeciesDict:
         solution = SpeciesDict[species]['SpeciesModel'].optimize()
         Name = SpeciesDict[species]['Name']
@@ -215,7 +214,6 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
             if abs(solution.fluxes[rid]) < 1e-12: 
                 solution.fluxes[rid] = 0
             ParDef[rid + '_' + Name] = solution.fluxes[rid]
-            ICS[rid] = PrevSteadyState[rid]
             ModelDS.set(pars=ParDef, ics=ICS)
     return ModelDS
 
