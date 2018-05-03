@@ -7,10 +7,18 @@ sys.path.append(SRCPATH)
 import simulator
 import matplotlib.pyplot as plt
 
+<<<<<<< HEAD
 ModelDefinitions = ['high-fiber-diet',
                     'western-diet',
                     'unconstrained',
                     'average-european-diet',
+=======
+ModelDefinitions = [
+    # 'high-fiber-diet',
+    # 'western-diet',
+    'unconstrained',
+                    #'average-european-diet',
+>>>>>>> 5ed55cb1f248d8b2ba2bd7e201e942df9d8dc925
 ]
 
 # ListOfRandomAbundantSpecies = [
@@ -37,6 +45,7 @@ ModelDefinitions = ['high-fiber-diet',
 # ]
 
 ListOfMostAbundantSpecies = [
+<<<<<<< HEAD
 'Bacteroides_thetaiotaomicron_VPI_5482',
 'Bacteroides_uniformis_ATCC_8492',
 'Bacteroides_vulgatus_ATCC_8482',
@@ -56,6 +65,27 @@ ListOfMostAbundantSpecies = [
 'Dialister_succinatiphilus_YIT_11850',
 'Haemophilus_parainfluenzae_T3T1',
 'Dorea_formicigenerans_ATCC_27755',
+=======
+#'Bacteroides_thetaiotaomicron_VPI_5482',
+# 'Bacteroides_uniformis_ATCC_8492',
+# 'Bacteroides_vulgatus_ATCC_8482',
+# 'Bacteroides_massiliensis_B846dnLKV334',
+# 'Eubacterium_eligens_ATCC_27750',
+# 'Campylobacter_showae_CSUNSWCD',
+# 'Ruminococcus_bromii_L2_63',
+# 'Ruminococcus_sp_5_1_39BFAA',
+# 'Bifidobacterium_longum_longum_JCM_1217',
+# 'Roseburia_intestinalis_L1_82',
+# 'Akkermansia_muciniphila_ATCC_BAA_835',
+# 'Eubacterium_rectale_M104_1',
+# 'Sutterella_wadsworthensis_3_1_45B',
+# 'Escherichia_coli_O157_H7_str_Sakai',
+# 'Escherichia_albertii_KF1',
+# 'Streptococcus_parasanguinis_ATCC_903',
+# 'Dialister_succinatiphilus_YIT_11850',
+# 'Haemophilus_parainfluenzae_T3T1',
+# 'Dorea_formicigenerans_ATCC_27755',
+>>>>>>> 5ed55cb1f248d8b2ba2bd7e201e942df9d8dc925
 'Faecalibacterium_prausnitzii_A2_165',
 ]
 
