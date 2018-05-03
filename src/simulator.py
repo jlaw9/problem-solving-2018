@@ -46,7 +46,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
     for species in SpeciesDict.keys():
         print("\nReading species " + str(species))
         SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
-        SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound/(10.0*number_of_species) for r in SpeciesDict[species]['SpeciesModel'].exchanges}
+        SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
         SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
         SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0] + '_' \
                                        + SpeciesDict[species]['SpeciesModel'].name.split(' ')[1].replace('.','')
@@ -159,7 +159,6 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
 
     ####################################################################################################
     ClustersMissed = list(requiredNutrients(SpeciesDict,MediaDF,True))
-    # print(ClustersMissed)
     print("Number of essential nutrients to be added is " + str(len(ClustersMissed)))
     ####################################################################################################
     
@@ -449,7 +448,6 @@ def getRelevantDictionaries(SpeciesDict, species_id): # Returns DietSensitivity 
 def getMinMetabolites(SpeciesDict,species_id, SenThresh,Clusters=False): # Returns model
     DietSensitivity = getRelevantDictionaries(SpeciesDict, species_id)
     metnames, metsensitivity = sensitivitySort(DietSensitivity)
-    print(metnames)
     model = copy.deepcopy(SpeciesDict[species_id]['SpeciesModel'])
     originallb = SpeciesDict[species_id]['OriginalLB']
     
