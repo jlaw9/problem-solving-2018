@@ -1655,22 +1655,23 @@ B
       'Bacteroides_sp_2_2_4',
       'Parabacteroides_johnsonii_DSM_18315',
       'Prevotella_oralis_ATCC_33269',
-      # 'Eubacterium_eligens_ATCC_27750',
-      'Slackia_exigua_ATCC_700122',
-      'Dorea_longicatena_DSM_13814',
-      'Clostridium_bartlettii_DSM_16795',
-      'Streptococcus_sp_I_P16',
-      'Blautia_hydrogenotrophica_DSM_10507',
-      'Brevundimonas_bacteroides_DSM_4726',
-      'Clostridium_hylemonae_DSM_15053',
-      'Sutterella_wadsworthensis_3_1_45B',
-      'Enterobacteriaceae_bacterium_9_2_54FAA',
-      # 'Bacillus_megaterium_DSM319',
-      # 'Peptostreptococcus_stomatis_DSM_17678', # average-european-diet causes problems
-      'Brachybacterium_paraconglomeratum_LC44',
-      'Neisseria_elongata_subsp_glycolytica_ATCC_29315',
-      'Rothia_aeria_F0474',
+      # # 'Eubacterium_eligens_ATCC_27750',
+      # 'Slackia_exigua_ATCC_700122',
+      # 'Dorea_longicatena_DSM_13814',
+      # 'Clostridium_bartlettii_DSM_16795',
+      # 'Streptococcus_sp_I_P16',
+      # 'Blautia_hydrogenotrophica_DSM_10507',
+      # 'Brevundimonas_bacteroides_DSM_4726',
+      # 'Clostridium_hylemonae_DSM_15053',
+      # 'Sutterella_wadsworthensis_3_1_45B',
+      # 'Enterobacteriaceae_bacterium_9_2_54FAA',
+      # # 'Bacillus_megaterium_DSM319',
+      # # 'Peptostreptococcus_stomatis_DSM_17678', # average-european-diet causes problems
+      # 'Brachybacterium_paraconglomeratum_LC44',
+      # 'Neisseria_elongata_subsp_glycolytica_ATCC_29315',
+      # 'Rothia_aeria_F0474',
       # 'Staphylococcus_hominis_subsp_hominis_C80'
+      "Shigella_flexneri_2002017" 
   ]
 
   DietDict = {
@@ -1685,15 +1686,39 @@ B
   SpeciesDict = {}
   count = 0.0
   for s in ListOfMostAbundantSpecies:
-      SpeciesDict['sp_' + str(count)] = {'File': './data/western-diet/' + s + '.xml', 'initAbundance':0.01}
+      SpeciesDict['sp_' + str(count)] = {'File': './data/average-european-diet/' + s + '.xml', 'initAbundance':0.01}
       count += 1
 
-  Diet = pd.read_csv(DietDict['Unhealthy'], sep='\t')
-  SpecDict, modDef, DS = simulator.defineDFBAModel(SpeciesDict, Diet, cobraonly=False)
+  Diet = pd.read_csv(DietDict['HighFiber'], sep='\t')
+  #defineDFBAModel(SpeciesDict , Diet, cobraonly=True)
+  Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=5,cobraonly=True)
+  #SpeciesDict, ModelDef, ModelDS = simulator.defineDFBAModel(SpeciesDict , Diet, cobraonly=False)
+  #ModelDef
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-1 - 58815872-6381-447c-87bd-e0025652e4d7
+# Out[2]:
 :END:
 
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+  for k in ModelDef.varspecs.keys():
+      if 'EX' not in k and 'DM' not in k:
+          print(k, ModelDef.varspecs[k])
+  #ModelDef.varspecs['Shigella_flexneri_M']
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[6]:
+:END:
+
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+simulator.plotBiomass( SpecDict, Output)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[3]:
+[[file:./obipy-resources/58118LR.png]]
+:END:

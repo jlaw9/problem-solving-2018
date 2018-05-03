@@ -46,7 +46,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
     for species in SpeciesDict.keys():
         print("\nReading species " + str(species))
         SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
-        SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
+        SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound/10.0 for r in SpeciesDict[species]['SpeciesModel'].exchanges}
         SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
         SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0] + '_' \
                                        + SpeciesDict[species]['SpeciesModel'].name.split(' ')[1].replace('.','')
@@ -138,15 +138,30 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         VarDef.update(variable_dict)
         exponent = 2
         List_of_names = [ SpeciesDict[sp]['Name'] for sp in SpeciesDict.keys()]
-        sum_of_species = ''.join([' + ' + name + '_M' for name in List_of_names])
+        #sum_of_species = 
+        sum_of_species = ' + '.join([ name + '_M' for name in List_of_names])
+        epsilon = '(epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
+        epsilon2 = '(epsilon_shig_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
         for name in List_of_names:
             VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'*10^'+str(exponent)+'/V_L - ' + name +'_M/V_M)'
             ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
             VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
                                   '*(' + name + '*10^'+str(exponent)+'/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
                                   ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
-                                  ' - (epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*'+name+'_M'
-        VarDef['B'] = 'max(0, ((epsilon_0+epsilon_E*(E_max-Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*10*(0' + sum_of_species +')-T)) - k_5 * P * B + mu_B * B'
+                                  ' - ' + epsilon +'*'+name+'_M'
+            if 'Shigella_flexneri' in name:
+                VarDef['B_shigella'] = '('+epsilon2+'* Shigella_flexneri_M)/('+ epsilon +'*('+sum_of_species +'- Shigella_flexneri_M' +') + ' + epsilon2 + '* Shigella_flexneri_M )' + '*max(0, (' + epsilon + '*(' + sum_of_species +') + (' + epsilon2 + ' * Shigella_flexneri_M)  - T * ( K_T/ (K_T + B_shigella) ))) - k_5 * P * B_shigella + mu_shigella * B_shigella'
+                
+                VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
+                                      '*(' + name + '*10^'+str(exponent)+'/V_L - ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
+                                      ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
+                                      ' - ' + epsilon2 +'*'+name+'_M'
+                
+                ParDef['epsilon_shig_0'] = 0.18
+                ParDef['K_T'] = 0.5
+                ParDef['mu_shigella'] = 0.05 ########################
+ 
+        VarDef['B'] = '('+epsilon+'*('+sum_of_species +')/('+epsilon+'*('+sum_of_species +'- Shigella_flexneri_M' +') + '+epsilon2 +'*Shigella_flexneri_M ))' + '*max(0, (' + epsilon + '*(' + sum_of_species +')  + '+epsilon2+'*Shigella_flexneri_M  -T*(K_T/(K_T+B_shigella)))) - k_5 * P * B + mu_B * B'
         VarDef['R_E'] = '(a_1*('+sum_of_species+')*(k_1*P+T_I))/((gamma_1+('+sum_of_species+'))*(1+alpha_RE*I_E))-mu_RE*R_E'
         VarDef['I_E'] = '(k_IE*R_E)/(gamma_IE+R_E)+alpha_11*('+sum_of_species+')-mu_IE*I_E'
 
