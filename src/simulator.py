@@ -37,10 +37,12 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
     ICS = dict()
     exchange_list = []
     mediaDerivedComponents = {}
+
     for i, row in MediaDF.iterrows():
         N = cleanupname(row.Reaction)
         mediaDerivedComponents[N] = row['Flux Value'] / (24.0) # Per minute
     number_of_species = len(SpeciesDict.keys())
+
     for species in SpeciesDict.keys():
         print("\nReading species " + str(species))
         SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
@@ -50,7 +52,6 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
                                        + SpeciesDict[species]['SpeciesModel'].name.split(' ')[1].replace('.','')
         SpeciesDict[species]['exchanges'] = [r.id for r in SpeciesDict[species]['SpeciesModel'].exchanges]
         exchange_list += SpeciesDict[species]['exchanges']
-        
         Name=SpeciesDict[species]['Name']
         ICS[Name] = SpeciesDict[species]['initAbundance']
         ParDef['mu' + '_' + Name] = SpeciesDict[species]['solution'].objective_value
@@ -155,7 +156,13 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
     
     for ex in exchange_list:
         all_exchanges.add(ex)
-        
+
+    ####################################################################################################
+    ClustersMissed = list(requiredNutrients(SpeciesDict,MediaDF,True))
+    # print(ClustersMissed)
+    print("Number of essential nutrients to be added is " + str(len(ClustersMissed)))
+    ####################################################################################################
+    
     for rid in all_exchanges:
         VarDef[rid] = '- Dilution * ' + rid
         ICS[rid] = 1.0 #0.1 #10.0
@@ -163,6 +170,10 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         if rid in mediaDerivedComponents.keys():
             ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
             VarDef[rid] += ' + ' +  rid + '_influx'
+
+        if rid in ClustersMissed:
+            ParDef[rid + '_artificial'] = 0.01 #########################################################
+            VarDef[rid] += ' + ' +  rid + '_artificial'
             
         for species in SpeciesDict.keys():
             if 'h2o' in rid: # Check to see if a unique metabolite is represented only once
@@ -388,6 +399,143 @@ def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, Initia
 
     return(AllPoints, SpeciesDict, Definition)
 
+##################################################
+## Minimal set of nutrients
+
+
+def sensitivitySort(DietSensitivity):
+    metnames=['']
+    metsensitivity=[0]
+    check=0
+    for metabolite in DietSensitivity.keys():
+        if check == 0:
+            check+=1
+            metnames[0]=metabolite
+            metsensitivity[0]=DietSensitivity[metabolite]
+        else:
+            i=0
+            while i<len(metnames):
+                if DietSensitivity[metabolite] >  metsensitivity[i]:
+                    metsensitivity[i+1:]=metsensitivity[i:]
+                    metsensitivity[i]= DietSensitivity[metabolite]
+                    metnames[i+1:]=metnames[i:]
+                    metnames[i]=metabolite
+                    break
+                elif i==len(metnames)-1:
+                    metsensitivity.append(DietSensitivity[metabolite])
+                    metnames.append(metabolite)
+                    break
+                i+=1
+    return metnames, metsensitivity
+
+def getRelevantDictionaries(SpeciesDict, species_id): # Returns DietSensitivity and originalLB
+    model = copy.deepcopy(SpeciesDict[species_id]['SpeciesModel'])
+    AllExchanges = [r.id for r in model.exchanges]
+    solution = model.optimize()
+    igr = solution.objective_value
+    DietSensitivity = {}
+    originallb = SpeciesDict[species_id]['OriginalLB']
+    
+    for r in AllExchanges:
+        if r not in DietSensitivity.keys():
+            model.reactions.get_by_id(r).lower_bound = 0 # Remove
+            s = model.optimize()
+            gr = s.objective_value
+            DietSensitivity[r] = abs(igr-gr)/igr
+            model.reactions.get_by_id(r).lower_bound = originallb[r] # Put it back in
+            
+    return DietSensitivity
+
+def getMinMetabolites(SpeciesDict,species_id, SenThresh,Clusters=False): # Returns model
+    DietSensitivity = getRelevantDictionaries(SpeciesDict, species_id)
+    metnames, metsensitivity = sensitivitySort(DietSensitivity)
+    print(metnames)
+    model = copy.deepcopy(SpeciesDict[species_id]['SpeciesModel'])
+    originallb = SpeciesDict[species_id]['OriginalLB']
+    
+    s = model.optimize()
+    gro = s.objective_value
+    EssentialMetabolites = {}
+    NonEssentialMetabolites = {}
+    
+    for i in range(len(metnames)-1,-1,-1): # Reverse order
+        model.reactions.get_by_id(metnames[i]).lower_bound = 0
+        s = model.optimize()
+        gr = s.objective_value
+        Sens = abs(gro-gr)/gro
+        if Sens > SenThresh: #if essential
+            EssentialMetabolites[metnames[i]]=Sens
+            model.reactions.get_by_id(metnames[i]).lower_bound = originallb[metnames[i]]
+        elif originallb[metnames[i]] < 0:
+            NonEssentialMetabolites[metnames[i]]=Sens
+    if Clusters== False:
+        return EssentialMetabolites, NonEssentialMetabolites
+    else:
+        return model, DietSensitivity, EssentialMetabolites, NonEssentialMetabolites
+    
+def getExcretedMetabolites(model):
+    AllExchanges = [r.id for r in model.exchanges]
+    MinSolution = model.optimize()
+    ExcretedMetabolites = []
+    for r in AllExchanges:
+        if MinSolution.fluxes[r] > 0:
+            ExcretedMetabolites.append(r)
+    return ExcretedMetabolites
+
+
+def cleanupname(name):
+    """
+     The reaction names in the model files 
+     don't have brackets or parentheses. I replaced
+     those found in the mediaFluxes file.
+     """
+    name = name.replace('[', '__40__')#_LPAREN_')
+    name = name.replace(']', '__41__')#'_RPAREN_')
+    name = name.replace('(', '__40__')#'_LPAREN_')
+    name = name.replace(')', '__41__')#'_RPAREN_')
+    return name
+
+
+def unsatisfiedClusters(Clusters,dietSet):
+    A = set()
+    B = set()
+    for metabolite in dietSet:
+        for clust in Clusters.keys():
+            B.add(clust)
+            if metabolite in Clusters[clust]['ClusterMetabolites']:
+                A.add(clust)
+    return B-A
+
+def requiredNutrients(SpeciesDict, MediaDF, RemoveOutExchanges=False):
+    AllEssentialMetabolites = set()
+    dietSet = set()
+    
+    for i, row in MediaDF.iterrows():
+        N = cleanupname(row.Reaction)
+        dietSet.add(N)
+        
+    excreted = set()
+    CommunitySpeciesIDs = [sp for sp in SpeciesDict.keys()]
+
+    for species_id in CommunitySpeciesIDs:
+        print(SpeciesDict[species_id]['Name'])
+        model, DietSensitivity, EssentialMetabolites, NonEssentialMetabolites = getMinMetabolites(SpeciesDict,species_id,0.99,Clusters=True)
+
+        
+        if RemoveOutExchanges == True:
+            excreted = excreted | set(getExcretedMetabolites(model))
+
+        AllEssentialMetabolites = (AllEssentialMetabolites | set(EssentialMetabolites))-excreted
+        
+    ClusterSetMissed = AllEssentialMetabolites - dietSet
+    return ClusterSetMissed
+    
+def getMetabolicOutputOverlap(ClusterA, ClusterB):
+    A = set(ClusterA)
+    B = set(ClusterB)
+    Overlap =  A & B
+    Unique = (A-B) | (B-A)
+    return Overlap, Unique
 
 
 ############################################################
