@@ -36,7 +36,16 @@ ListOfMostAbundantSpecies = [
 ]
 i = 0
 
+ListOfColors=[
+    'aqua','olive', 'black', 'chartreuse',
+    'coral', 'crimson', 'darkgreen', 'green',
+    'indigo', 'grey',
+    'aqua','olive', 'black', 'chartreuse',
+    'coral', 'crimson', 'darkgreen', 'green',
+    'indigo', 'grey']
 
+Styles = ['--','--','--','--','--','--','--','--','--','--',
+'-','-','-','-','-','-','-','-','-','-']
 DietDict = {
     'HighFiber': '../../dfba/data/diet-definitions/VMH_HighFiber.tsv',
     'HighProtein': '../../dfba/data/diet-definitions/VMH_HighProtein.tsv',
@@ -46,39 +55,53 @@ DietDict = {
     'Unhealthy': '../../dfba/data/diet-definitions/VMH_Unhealthy.tsv'
 }
 
-def plotBiomass(ModelType, SpeciesDict, AllPoints):
+def plotBiomass(ModelType, SpeciesDict, AllPoints, diet):
     TimePoints={}
     TimePoints['t'] =[]
-
+    plotspecs = {}
     for P in AllPoints:
         TimePoints['t'] += list(P['t'])
 
     for sp in SpeciesDict.keys():
         Name = SpeciesDict[sp]['Name']
         TimePoints[Name] = []
+        plotspecs[Name] = {}
+        plotspecs[Name]['color'] = 'xkcd:' + SpeciesDict[sp]['plotspec']['color']
+        plotspecs[Name]['style'] = SpeciesDict[sp]['plotspec']['style']
         for P in AllPoints:
             TimePoints[Name]+=list(P[Name])
 
     for k in TimePoints.keys():
         if k != 't':
-            plt.plot(TimePoints['t'], TimePoints[k], label = k)
+            plt.plot(TimePoints['t'], TimePoints[k], label = k,color=plotspecs[k]['color'], linestyle=plotspecs[k]['style'])
 
     plt.xlabel('Time (minutes)')
     plt.ylabel('gdw')
+    plt.title(diet)
     plt.legend(bbox_to_anchor=(1.2,1.2))
-    plt.savefig('./figs_community/'+ ModelType + '_'  + SingleSpeciesDict[sp_id]['Name'] + '.pdf', dpi=300)
+    plt.savefig('./figs_community/'+ ModelType + '_'  + diet +'.pdf', bbox_inches='tight', dpi=300)
 
 for m in ModelDefinitions:
     for diet in DietDict.keys():
         SpeciesDict = {}
         count = 0
         for s in ListOfMostAbundantSpecies:
-            SpeciesDict['sp_' + str(count)] = {'File': RELPATH +  '/../../dfba/data/' + m + '/' + s + '.xml', 'initAbundance':0.01}
+            SpeciesDict['sp_' + str(count)] = {'File': RELPATH +  '/../../dfba/data/' + m + '/' + s + '.xml', 'initAbundance':0.01,'plotspec':{'color':ListOfColors[count],'style':Styles[count]}}
             count += 1
         Diet = pd.read_csv(RELPATH +'/' + DietDict[diet], sep='\t')
         Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=20, cobraonly=True)
-        plotBiomass(m, SpecDict, Output)
+        plotBiomass(m, SpecDict, Output,diet)
         del Diet
         del Output
         del SpecDict
         del modDef
+
+# count = 0
+i=0
+x=[1,2,3,4]
+for s in ListOfMostAbundantSpecies:
+    plt.plot(x,x, label=s.split('_')[0]+ '_' + s.split('_')[1], color=ListOfColors[i], linestyle=Styles[i])
+    i+=1
+    
+plt.legend()
+plt.savefig('./figs_community/legend.svg',dpi=300)
