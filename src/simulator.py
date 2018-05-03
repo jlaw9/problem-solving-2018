@@ -135,17 +135,15 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         VarDef.update(variable_dict)
 
         List_of_names = [ SpeciesDict[sp]['Name'] for sp in SpeciesDict.keys()]
-        sum_of_species = ''
+        sum_of_species = ''.join([' + ' + name + '_M' for name in List_of_names])
         for name in List_of_names:
-            sum_of_species += ' + ' + name + '_M'
             VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'/V_L - ' + name +'_M/V_M)'
             # 10^12 is a placeholder for mass/cell
             ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
-        for name in List_of_names: #****
-             VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
-                            '*(' + name + '/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
-                            ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
-                            ' - (epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*'+name+'_M'
+            VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
+                                  '*(' + name + '/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
+                                  ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
+                                  ' - (epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*'+name+'_M'
         VarDef['B'] = 'max(0, ((epsilon_0+epsilon_E*(E_max-Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*(0' + sum_of_species +')-T)) - k_5 * P * B + mu_B * B'
         VarDef['R_E'] = '(a_1*('+sum_of_species+')*(k_1*P+T_I))/((gamma_1+('+sum_of_species+'))*(1+alpha_RE*I_E))-mu_RE*R_E'
         VarDef['I_E'] = '(k_IE*R_E)/(gamma_IE+R_E)+alpha_11*('+sum_of_species+')-mu_IE*I_E'
@@ -215,6 +213,7 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
             if abs(solution.fluxes[rid]) < 1e-12: 
                 solution.fluxes[rid] = 0
             ParDef[rid + '_' + Name] = solution.fluxes[rid]
+            ICS[rid] = PrevSteadyState[rid]
             ModelDS.set(pars=ParDef, ics=ICS)
     return ModelDS
 
