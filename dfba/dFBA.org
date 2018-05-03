@@ -1537,7 +1537,7 @@ B
    sys.path.append("../src/")
    import simulator
    ListOfSpecies = [
-       'Brachybacterium_paraconglomeratum_LC44',
+       # 'Brachybacterium_paraconglomeratum_LC44',
        'Neisseria_elongata_subsp_glycolytica_ATCC_29315',
        'Rothia_aeria_F0474',
        'Staphylococcus_hominis_subsp_hominis_C80'
@@ -1555,27 +1555,35 @@ B
    SpeciesDict = {}
    count = 0.0
    for s in ListOfSpecies:
-       SpeciesDict['sp_' + str(count)] = {'File': './data/average-european-diet/' + s + '.xml', 'initAbundance':0.01}
+       SpeciesDict['sp_' + str(count)] = {'File': './data/unconstrained/' + s + '.xml', 'initAbundance':0.01}
        count += 1
 
    Diet = pd.read_csv(DietDict['Unhealthy'], sep='\t')
-   Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=30)
+   #Output_conly, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=100,cobraonly=True)
+   Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=50,cobraonly=False)
 
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - 897c8d4c-e78b-45e6-a5d6-271522f20e7c
+# Out[1]:
 :END:
 
+#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
+ simulator.plotBiomass( SpecDict, Output_conly)
+#+END_SRC
+#+RESULTS:
+:RESULTS:
+0 - 2c7d9402-0eb9-4865-a58a-5001dd0c26e1
+:END:
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
  simulator.plotBiomass( SpecDict, Output)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[8]:
-[[file:./obipy-resources/9286T0g.png]]
+# Out[3]:
+[[file:./obipy-resources/11819mIr.png]]
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
@@ -1585,34 +1593,46 @@ B
       for iv in ImmuneVars.keys():
           ImmuneVars[iv] += list(O[iv])
       Time += list(O['t'])
-  for iv in ImmuneVars.keys():
-      plt.plot(Time,ImmuneVars[iv], label=iv)
+  f, (ax1,ax2) = plt.subplots(2,2)
+
+  ax1[0].plot(Time,ImmuneVars['P'], label='P')
+  ax1[0].set_title('P')
+  ax1[1].plot(Time,ImmuneVars['B'], label='B')
+  ax1[1].set_title('B')
+  ax2[0].plot(Time,ImmuneVars['I_E'], label='I_E')
+  ax2[0].set_title('I_E')
+  ax2[1].plot(Time,ImmuneVars['R_E'], label='R_E')
+  ax2[1].set_title('R_E')
+
   plt.legend()
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[23]:
-: <matplotlib.legend.Legend at 0x7fda2d4a5150>
-[[file:./obipy-resources/92866Sz.png]]
+# Out[5]:
+: <matplotlib.legend.Legend at 0x7fee8c8489d0>
+[[file:./obipy-resources/11819zSx.png]]
 :END:
 
 #+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-len(Time)
+  Mucosa = dict()
+  Time = []
+  for O in Output:
+      Time += list(O['t'])
+      for sp in SpecDict.keys():
+          if SpecDict[sp]['Name']+'_M' not in Mucosa.keys():
+              Mucosa[SpecDict[sp]['Name']+'_M'] = []
+
+          Mucosa[SpecDict[sp]['Name'] + '_M'] += list(O[SpecDict[sp]['Name']+ '_M'])
+
+  for name in Mucosa.keys():
+      plt.plot(Time, Mucosa[name],label=name)
+  plt.legend()
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[22]:
-: 11280
-:END:
-
-#+BEGIN_SRC ipython :session :exports both :results raw drawer :async t
-Time
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-# Out[15]:
-: []
+# Out[6]:
+: <matplotlib.legend.Legend at 0x7fee8c78f750>
+[[file:./obipy-resources/11819lcA.png]]
 :END:

@@ -7,7 +7,6 @@ import sys
 import pdb
 import time
 
-
 def cleanupname(name):
     """
      The reaction names in the model files 
@@ -41,12 +40,11 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
     for i, row in MediaDF.iterrows():
         N = cleanupname(row.Reaction)
         mediaDerivedComponents[N] = row['Flux Value'] / (24.0) # Per minute
-        
+    number_of_species = len(SpeciesDict.keys())
     for species in SpeciesDict.keys():
         print("\nReading species " + str(species))
         SpeciesDict[species]['SpeciesModel'] = cobra.io.read_sbml_model(SpeciesDict[species]['File'])
-        SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound/10.0 for r in SpeciesDict[species]['SpeciesModel'].exchanges}
-        # SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound for r in SpeciesDict[species]['SpeciesModel'].exchanges}
+        SpeciesDict[species]['OriginalLB'] = {r.id:r.lower_bound/(10.0*number_of_species) for r in SpeciesDict[species]['SpeciesModel'].exchanges}
         SpeciesDict[species]['solution'] = SpeciesDict[species]['SpeciesModel'].optimize()
         SpeciesDict[species]['Name'] = SpeciesDict[species]['SpeciesModel'].name.split(' ')[0] + '_' \
                                        + SpeciesDict[species]['SpeciesModel'].name.split(' ')[1].replace('.','')
@@ -64,16 +62,20 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             'Ep': 'mu_E*(Ep/(Ep+gamma_E))-(d1+d2*max(0,P-V_S1*S/(S+gamma_s1)-T_EP))*Ep',
         }
         scale = 0.2
+        mu_E = 0.5/2.0/scale 
+        gamma_E = 0.5
+        d1 = 0.125/2.0/scale
+        d2 = 0.625/10/scale
+        E_max = (mu_E - gamma_E*d1)/d1
         parameter_dict = {
             'V_L': 1,
             'V_M':0.5,
             'd_BL':0.5,
             'k_dif': 5,
-            'B_MSource':3e6, #1.5e6,#
-            'k_AD':1.5e6,#
+            'k_AD':1.5,#e6
             'k_3':6e6,
-            'k_AT':0.015,
-            'alpha_EM':0.18,
+            'k_AT':1e-3,#0.015,
+            'alpha_EM':0.18e-2,#0.18,
             'epsilon_0':0.1,
             'epsilon_max':0.21,
             'tau_p':24,
@@ -87,10 +89,10 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             'gamma_IE':10,
             'alpha_11':0.1e-7,
             'mu_IE':1,
-            'T':1.1e6,
+            'T':0.5,#1.1e6,
             'k_5':8,
             'k_PM':0.025/scale,
-            'gamma_12':1.2e5,
+            'gamma_12':1.2e1,#1.2e5,
             'k_PE':0.001/scale,
             'T_RE':0.65,
             'gamma_PE':1,
@@ -99,7 +101,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
             'mu_E': mu_E,
             'gamma_E':gamma_E,
             'd1': d1,
-            'd2': 0.625/10/scale,
+            'd2': d2,
             'E_max': E_max,
             'epsilon_E': 0.1,
             'mu_B':0.0,
@@ -133,18 +135,17 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         ParDef.update(parameter_dict)
         ICS.update(initial_conditions)
         VarDef.update(variable_dict)
-
+        exponent = 2
         List_of_names = [ SpeciesDict[sp]['Name'] for sp in SpeciesDict.keys()]
         sum_of_species = ''.join([' + ' + name + '_M' for name in List_of_names])
         for name in List_of_names:
-            VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'/V_L - ' + name +'_M/V_M)'
-            # 10^12 is a placeholder for mass/cell
+            VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'*10^'+str(exponent)+'/V_L - ' + name +'_M/V_M)'
             ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
             VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
-                                  '*(' + name + '/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
+                                  '*(' + name + '*10^'+str(exponent)+'/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
                                   ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                                   ' - (epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*'+name+'_M'
-        VarDef['B'] = 'max(0, ((epsilon_0+epsilon_E*(E_max-Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*(0' + sum_of_species +')-T)) - k_5 * P * B + mu_B * B'
+        VarDef['B'] = 'max(0, ((epsilon_0+epsilon_E*(E_max-Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))*10*(0' + sum_of_species +')-T)) - k_5 * P * B + mu_B * B'
         VarDef['R_E'] = '(a_1*('+sum_of_species+')*(k_1*P+T_I))/((gamma_1+('+sum_of_species+'))*(1+alpha_RE*I_E))-mu_RE*R_E'
         VarDef['I_E'] = '(k_IE*R_E)/(gamma_IE+R_E)+alpha_11*('+sum_of_species+')-mu_IE*I_E'
 
@@ -196,7 +197,6 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
         ICS['P'] = PrevSteadyState['P']
         ICS['R_E'] = PrevSteadyState['R_E']
         ICS['I_E'] = PrevSteadyState['I_E']
-#        ICS['epsilon'] = PrevSteadyState['epsilon']
         ICS['Ep'] = PrevSteadyState['Ep']
         ICS['B'] = PrevSteadyState['B']
     for species in SpeciesDict:
@@ -245,12 +245,6 @@ def checkNegativeMetabolites(PointSet, StoreNegatives):
 
     if IndexStop < len(PointSet['t']) and IndexStop > 0:
         P_tilFirstNeg={}
-#        if len(PointSet[variable] > IndexStop+5):
-#            Extension = 5
-#        elif len(PointSet[variable] > IndexStop+2):
-#            Extension = 2
-#        else:
-#            Extension = 0
         for variable in PointSet.keys():
             P_tilFirstNeg[variable]=PointSet[variable][:IndexStop]
             if PointSet[variable][IndexStop] < 0.0: #+ Extension]
@@ -279,7 +273,7 @@ def plotBiomass(SpeciesDict, AllPoints):
         if k != 't':
             plt.plot(TimePoints['t'], TimePoints[k], label = k)
 
-        plt.xlabel('Time (minutes)')
+        plt.xlabel('Time (hours)')
     plt.ylabel('gdw')
     plt.legend(bbox_to_anchor=(1.2,1.2))
 
