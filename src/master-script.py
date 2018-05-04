@@ -42,7 +42,7 @@ DietDict = {
 }
 
 
-def main(species, abundances={}, out_pref=None, diet="HighFiber", max_iters=10):
+def main(species, abundances={}, out_pref=None, diet="HighFiber", max_iters=10, cobraonly=False, with_essential=False):
 
     #model_file_template = "%s/%%s.xml" % (SBML_DIR)
     # start with the default 0.01 for all species
@@ -66,10 +66,10 @@ def main(species, abundances={}, out_pref=None, diet="HighFiber", max_iters=10):
     out_dir = os.path.dirname(out_file)
     utils.checkDir(out_dir)
 
-    simulate_models(species, SpeciesDict, diet=diet, out_file=out_file, max_iters=max_iters)
+    simulate_models(species, SpeciesDict, diet=diet, out_file=out_file, max_iters=max_iters, cobraonly=cobraonly, with_essential=with_essential)
 
 
-def simulate_models(species, SpeciesDict, diet="HighFiber", out_file=None, max_iters=10):
+def simulate_models(species, SpeciesDict, diet="HighFiber", out_file=None, max_iters=10,cobraonly=False, with_essential=False):
     """
     *species*: list of species to simulate together
     *abundances*: abundances for those species
@@ -111,6 +111,10 @@ def parse_args(args):
                       help="output prefix for plot")
     parser.add_option('','--max-iters',type='int', default=10,
                       help="number of iterations to run the simulation")
+    parser.add_option('','--with-essential',action="store_true",
+                      help="Simulate community with Shigella flexneri, a pathogen")
+    parser.add_option('','--cobraonly',action="store_true",
+                    help="Only simulate the FBA models.")
 
     (opts, args) = parser.parse_args()
 
@@ -123,10 +127,12 @@ if __name__ == "__main__":
     #abundances = {s: 0.01 for s in species}
     species = None
     abundances = {}
+    
     if opts.species_file is not None:
         df = pd.read_csv(opts.species_file, sep='\t')
         species = df['species']
         print(species)
+            
     elif opts.abundances_file is not None:
         df = pd.read_csv(opts.abundances_file, sep='\t')
         print(df)
@@ -144,6 +150,8 @@ if __name__ == "__main__":
         print("No species specified. Using defaults:")
         print(species)
 
+    
     #main(ListOfMostAbundantSpecies, opts.out_pref, abundances, max_iters=opts.max_iters)
     main(species, abundances=abundances, diet=opts.diet,
-            out_pref=opts.out_pref, max_iters=opts.max_iters)
+         out_pref=opts.out_pref, max_iters=opts.max_iters, cobraonly=opts.cobraonly,
+         with_essential=opts.with_essential)

@@ -30,7 +30,7 @@ def cleanupname(name):
     # name = name.replace(')', '__93__')
     return name
 
-def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
+def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, use_essential):
     print("Defining Dynamical model... \n")
     ParDef = dict()
     VarDef = dict()
@@ -40,7 +40,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
 
     for i, row in MediaDF.iterrows():
         N = cleanupname(row.Reaction)
-        mediaDerivedComponents[N] = row['Flux Value'] / (24.0) # Per minute
+        mediaDerivedComponents[N] = row['Flux Value'] / (24.0) # Per hour
     number_of_species = len(SpeciesDict.keys())
 
     for species in SpeciesDict.keys():
@@ -138,22 +138,40 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         VarDef.update(variable_dict)
         exponent = 2
         List_of_names = [ SpeciesDict[sp]['Name'] for sp in SpeciesDict.keys()]
-        #sum_of_species = 
+
         sum_of_species = ' + '.join([ name + '_M' for name in List_of_names])
+        
         epsilon = '(epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
+        
         epsilon2 = '(epsilon_shig_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
+        
         for name in List_of_names:
-            VarDef[name] += '- (k_max*gamma_dif^n1/(gamma_dif^n1+(Ep*(delta_muc+S*(1-delta_muc)/(S+alpha_muc)))^n1))*('+ name +'*10^'+str(exponent)+'/V_L - ' + name +'_M/V_M)'
+            VarDef[name] += ' - (k_max * gamma_dif^n1 / (gamma_dif^n1 + '\
+                            '(Ep * (delta_muc + S * (1 - delta_muc) / '\
+                            '(S + alpha_muc)))^n1)) * ('+ name + ' * 10^'\
+                            + str(exponent) + ' / V_L - ' + name +'_M / V_M)'
+            
             ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
-            VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
-                                  '*(' + name + '*10^'+str(exponent)+'/V_L- ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
+            
+            VarDef[name + '_M'] = '(k_max * gamma_dif^n1/ (gamma_dif^n1 + '\
+                                  '(Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
+                                  '*(' + name + '*10^'+str(exponent)+'/V_L- ' + name + '_M/V_M)'\
+                                  ' - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
                                   ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                                   ' - ' + epsilon +'*'+name+'_M'
+            
             if 'Shigella_flexneri' in name:
-                VarDef['B_shigella'] = '('+epsilon2+'* Shigella_flexneri_M)/('+ epsilon +'*('+sum_of_species +'- Shigella_flexneri_M' +') + ' + epsilon2 + '* Shigella_flexneri_M )' + '*max(0, (' + epsilon + '*(' + sum_of_species +') + (' + epsilon2 + ' * Shigella_flexneri_M)  - T * ( K_T/ (K_T + B_shigella) ))) - k_5 * P * B_shigella + mu_shigella * B_shigella'
+                VarDef['B_shigella'] = '('+epsilon2+'* Shigella_flexneri_M)/('+ epsilon +\
+                                       '*('+sum_of_species +'- Shigella_flexneri_M' +') + '\
+                                       + epsilon2 + '* Shigella_flexneri_M )' + '*max(0, ('\
+                                       + epsilon + '*(' + sum_of_species +') + (' + epsilon2\
+                                       + ' * Shigella_flexneri_M)  - T * ( K_T/ (K_T + B_shigella) )))'\
+                                       ' - k_5 * P * B_shigella + mu_shigella * B_shigella'
                 
-                VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
-                                      '*(' + name + '*10^'+str(exponent)+'/V_L - ' + name + '_M/V_M) - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
+                VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * '\
+                                      '(delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
+                                      '*(' + name + '*10^'+str(exponent)+'/V_L - ' + name + '_M/V_M)'\
+                                      ' - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
                                       ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                                       ' - ' + epsilon2 +'*'+name+'_M'
                 
@@ -161,9 +179,19 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
                 ParDef['K_T'] = 0.5
                 ParDef['mu_shigella'] = 0.05 ########################
  
-        VarDef['B'] = '('+epsilon+'*('+sum_of_species +')/('+epsilon+'*('+sum_of_species +'- Shigella_flexneri_M' +') + '+epsilon2 +'*Shigella_flexneri_M ))' + '*max(0, (' + epsilon + '*(' + sum_of_species +')  + '+epsilon2+'*Shigella_flexneri_M  -T*(K_T/(K_T+B_shigella)))) - k_5 * P * B + mu_B * B'
-        VarDef['R_E'] = '(a_1*('+sum_of_species+')*(k_1*P+T_I))/((gamma_1+('+sum_of_species+'))*(1+alpha_RE*I_E))-mu_RE*R_E'
-        VarDef['I_E'] = '(k_IE*R_E)/(gamma_IE+R_E)+alpha_11*('+sum_of_species+')-mu_IE*I_E'
+        VarDef['B'] = '(' + epsilon + ' * (' + sum_of_species + ')/('\
+                      + epsilon+'*('+sum_of_species +'- Shigella_flexneri_M'\
+                      +') + '+epsilon2 +'*Shigella_flexneri_M ))'\
+                      + '*max(0,(' + epsilon + '*(' + sum_of_species +')'\
+                      '  + ' + epsilon2 + ' * Shigella_flexneri_M  -T * '\
+                      '(K_T/(K_T+B_shigella)))) - k_5 * P * B + mu_B * B'
+        
+        VarDef['R_E'] = '(a_1*(' + sum_of_species + ')*(k_1*P+T_I))/((gamma_1+('\
+                        + sum_of_species + '))*(1+alpha_RE*I_E))-mu_RE*R_E'
+        
+        VarDef['I_E'] = '(k_IE * R_E) / (gamma_IE + R_E) + alpha_11 * ('\
+                        + sum_of_species + ') - mu_IE * I_E'
+        
 
     ParDef['Dilution'] = 0.002
   
@@ -173,25 +201,28 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
         all_exchanges.add(ex)
 
     ####################################################################################################
-    ClustersMissed = list(requiredNutrients(SpeciesDict,MediaDF,True))
-    print("Number of essential nutrients to be added is " + str(len(ClustersMissed)))
+    if use_essential:
+        ClustersMissed = list(requiredNutrients(SpeciesDict,MediaDF,True))
+        print("Number of essential nutrients to be added is " + str(len(ClustersMissed)))
     ####################################################################################################
     
     for rid in all_exchanges:
         VarDef[rid] = '- Dilution * ' + rid
-        ICS[rid] = 1.0 #0.1 #10.0
+        ICS[rid] = 1.0 
 
         if rid in mediaDerivedComponents.keys():
             ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
             VarDef[rid] += ' + ' +  rid + '_influx'
-
-        if rid in ClustersMissed:
-            ParDef[rid + '_artificial'] = 0.01 #########################################################
-            VarDef[rid] += ' + ' +  rid + '_artificial'
+            
+        if use_essential:
+            if rid in ClustersMissed:
+                ParDef[rid + '_artificial'] = 0.01 #########################################################
+                VarDef[rid] += ' + ' +  rid + '_artificial'
             
         for species in SpeciesDict.keys():
             if 'h2o' in rid: # Check to see if a unique metabolite is represented only once
                 print(species, rid)
+                
             if rid in SpeciesDict[species]['exchanges']:
                 Name = SpeciesDict[species]['Name']
                 ParDef[rid + '_' + Name] = SpeciesDict[species]['solution'].fluxes[rid]
@@ -204,7 +235,6 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly):
     ModelDS = dst.Vode_ODEsystem(ModelDef)
     print("Done!")
     return (SpeciesDict, ModelDef, ModelDS)
-# Functions for model updates
 
 def recomputeLowerBounds(SpeciesDict, PrevSteadyState, Kmax):
     for species in SpeciesDict.keys():
@@ -218,12 +248,14 @@ def recomputeLowerBounds(SpeciesDict, PrevSteadyState, Kmax):
 def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
     ParDef = {}
     ICS = {}
+    
     if not cobraonly:
         ICS['P'] = PrevSteadyState['P']
         ICS['R_E'] = PrevSteadyState['R_E']
         ICS['I_E'] = PrevSteadyState['I_E']
         ICS['Ep'] = PrevSteadyState['Ep']
         ICS['B'] = PrevSteadyState['B']
+        
     for species in SpeciesDict:
         solution = SpeciesDict[species]['SpeciesModel'].optimize()
         Name = SpeciesDict[species]['Name']
@@ -240,7 +272,9 @@ def updateFluxParameters(SpeciesDict, ModelDS, PrevSteadyState, cobraonly):
             ParDef[rid + '_' + Name] = solution.fluxes[rid]
             ICS[rid] = PrevSteadyState[rid]
             ModelDS.set(pars=ParDef, ics=ICS)
+            
     return ModelDS
+
 
 def update(SpeciesDict, ModelDS, PrevSteadyState, Kmax, cobraonly):
     UpdatedSpeciesDict = recomputeLowerBounds(SpeciesDict,
@@ -250,13 +284,16 @@ def update(SpeciesDict, ModelDS, PrevSteadyState, Kmax, cobraonly):
                                                ModelDS,
                                                PrevSteadyState,
                                                cobraonly)
+    
     return(UpdatedSpeciesDict, UpdatedDynamicModel)
+
 
 def get_ss(PointSet):
     SSPoints={}
     for k in PointSet.keys():
         SSPoints[k]=PointSet[k][-1]
     return(SSPoints)
+
 
 def checkNegativeMetabolites(PointSet, StoreNegatives):
     IndexStop = len(PointSet['t'])
@@ -279,7 +316,9 @@ def checkNegativeMetabolites(PointSet, StoreNegatives):
 
         P_tilFirstNeg['t'] = PointSet['t'][:IndexStop]
         PointSet = P_tilFirstNeg
-    return(PointSet,StoreNegatives)
+        
+    return(PointSet, StoreNegatives)
+
 
 def plotBiomass(SpeciesDict, AllPoints):
     TimePoints={}
@@ -364,7 +403,8 @@ def plotMetabolites(AllPoints):
     plt.ylabel('mmol')
     plt.legend()
 
-def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, InitialValues = {}, cobraonly=False):
+    
+def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, InitialValues = {}, cobraonly=False, use_essential=True):
     """
     Simulates the microbial community.
     Arguments:
@@ -375,7 +415,7 @@ def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, Initia
         List of PointSet objects and updated SpeciesDict
     """
     if not InitialValues:
-        SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet,cobraonly)
+        SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet,cobraonly, use_essential)
         InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
     AllPoints = []
     StoreNegatives = set()
