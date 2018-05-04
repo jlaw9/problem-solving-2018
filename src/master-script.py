@@ -101,7 +101,7 @@ def simulate_models(species, SpeciesDict, diet="HighFiber", out_file=None, max_i
 def parse_args(args):
     usage = '%s [options]\n' % (args[0])
     parser = OptionParser(usage=usage)
-    parser.add_option('','--species-file',type='string', default="",
+    parser.add_option('','--species-file',type='string', 
                       help="List of species to simulate together. Not needed if abundances_file is given")
     parser.add_option('','--abundances-file',type='string', 
                       help="File containing the species name in the first column, and the abundance to use in the second")
