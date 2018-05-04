@@ -102,7 +102,7 @@ def parse_args(args):
     usage = '%s [options]\n' % (args[0])
     parser = OptionParser(usage=usage)
     parser.add_option('','--species-file',type='string', default="",
-                      help="List of species to simulate together")
+                      help="List of species to simulate together. Not needed if abundances_file is given")
     parser.add_option('','--abundances-file',type='string', 
                       help="File containing the species name in the first column, and the abundance to use in the second")
     parser.add_option('','--diet',type='string', default='HighFiber',
@@ -121,11 +121,18 @@ if __name__ == "__main__":
     opts, args = parse_args(sys.argv)
 
     #abundances = {s: 0.01 for s in species}
-    if opts.abundances_file is not None:
+    species = None
+    abundances = {}
+    if opts.species_file is not None:
+        df = pd.read_csv(opts.species_file, sep='\t')
+        species = df['species']
+        print(species)
+    elif opts.abundances_file is not None:
         df = pd.read_csv(opts.abundances_file, sep='\t')
         print(df)
         abundances = dict(zip(df['species'], df['abundance']))
-        species = df.species
+        if species is None:
+            species = df.species
     else:
         ListOfMostAbundantSpecies = [
             'Bacteroides_thetaiotaomicron_VPI_5482',
@@ -136,7 +143,6 @@ if __name__ == "__main__":
         species = ListOfMostAbundantSpecies
         print("No species specified. Using defaults:")
         print(species)
-        abundances = {}
 
     #main(ListOfMostAbundantSpecies, opts.out_pref, abundances, max_iters=opts.max_iters)
     main(species, abundances=abundances, diet=opts.diet,
