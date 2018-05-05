@@ -63,7 +63,7 @@ def main(species, abundances={}, out_pref=None, diet="HighFiber", max_iters=10, 
         #count += 1
 
     out_file_pref = "%s%dmodels-%s-%diters-" % (out_pref, len(species), diet, max_iters)
-    out_dir = os.path.dirname(out_file)
+    out_dir = os.path.dirname(out_file_pref)
     utils.checkDir(out_dir)
 
     simulate_models(species, SpeciesDict, diet=diet, out_file_pref=out_file_pref, max_iters=max_iters, cobraonly=cobraonly, with_essential=with_essential)
