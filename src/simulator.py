@@ -30,7 +30,7 @@ def cleanupname(name):
     # name = name.replace(')', '__93__')
     return name
 
-def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, use_essential):
+def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
     print("Defining Dynamical model... \n")
     ParDef = dict()
     VarDef = dict()
@@ -201,7 +201,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, use_essential):
         all_exchanges.add(ex)
 
     ####################################################################################################
-    if use_essential:
+    if with_essential:
         ClustersMissed = list(requiredNutrients(SpeciesDict,MediaDF,True))
         print("Number of essential nutrients to be added is " + str(len(ClustersMissed)))
     ####################################################################################################
@@ -214,7 +214,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, use_essential):
             ParDef[rid + '_influx'] = mediaDerivedComponents[rid]
             VarDef[rid] += ' + ' +  rid + '_influx'
             
-        if use_essential:
+        if with_essential:
             if rid in ClustersMissed:
                 ParDef[rid + '_artificial'] = 0.01 #########################################################
                 VarDef[rid] += ' + ' +  rid + '_artificial'
@@ -404,7 +404,7 @@ def plotMetabolites(AllPoints):
     plt.legend()
 
     
-def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, InitialValues = {}, cobraonly=False, use_essential=True):
+def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, InitialValues = {}, cobraonly=False, with_essential=True):
     """
     Simulates the microbial community.
     Arguments:

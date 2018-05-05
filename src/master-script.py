@@ -76,7 +76,7 @@ def simulate_models(species, SpeciesDict, diet="HighFiber", out_file=None, max_i
     """
 
     Diet = pd.read_csv(DietDict[diet], sep='\t')
-    Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=max_iters, cobraonly=True)
+    Output, SpecDict, modDef = simulator.simulateCommunity(SpeciesDict, Diet, MaxIter=max_iters, cobraonly=cobraonly,with_essential=with_essential)
 
     species_abundances = defaultdict(list)
     for sp in SpecDict.keys():
