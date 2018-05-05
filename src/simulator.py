@@ -202,6 +202,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
 
     ####################################################################################################
     if with_essential:
+        print("Finding the essential nutrients for each species")
         ClustersMissed = list(requiredNutrients(SpeciesDict,MediaDF,True))
         print("Number of essential nutrients to be added is " + str(len(ClustersMissed)))
     ####################################################################################################
