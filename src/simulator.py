@@ -116,7 +116,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
             'gamma_s2' : 1,
             'delta_muc': 0.3,
             'alpha_muc': 1,
-            'k_max': 5,
+            'k_max': 0.1,
             'gamma_dif': 0.75,
             'S' : 0,
             'n1': 2,
@@ -187,7 +187,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
                       '  + ' + epsilon2 + ' * Shigella_flexneri_M  -T * '\
                       '(K_T/(K_T+B_shigella)))) - k_5 * P * B + mu_B * B'
 
-                ICS['B_Shigella'] = 0.0
+                ICS['B_shigella'] = 0.0
                 ParDef['epsilon_shig_0'] = 0.18
                 ParDef['K_T'] = 0.5
                 ParDef['mu_shigella'] = 0.05 ########################
