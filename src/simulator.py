@@ -69,18 +69,21 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
         d2 = 0.625/10/scale
         E_max = (mu_E - gamma_E*d1)/d1
         parameter_dict = {
-            'V_L': 1,
-            'V_M':0.5,
+            'V_L': 10,
+            'V_M':50,
             'd_BL':0.5,
-            'k_dif': 5,
-            'k_AD':1.5,#e6
-            'k_3':6e6,
+            'k_dif':0.1,# 5,
+            
+            'k_AD':0.5,#e6
+            'k_3':5, #6e6,
+            
             'k_AT':1e-3,#0.015,
-            'alpha_EM':0.18e-2,#0.18,
+            'alpha_EM':1.8,
+
             'epsilon_0':0.1,
             'epsilon_max':0.21,
-            'tau_p':24,
-            'f':0.5,
+            # 'tau_p':24,
+            # 'f':0.5,
             'a_1':0.5,#
             'gamma_1':5e6,
             'k_1':1,
@@ -136,14 +139,12 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
         ParDef.update(parameter_dict)
         ICS.update(initial_conditions)
         VarDef.update(variable_dict)
-        exponent = 2
+        exponent = 1
         List_of_names = [ SpeciesDict[sp]['Name'] for sp in SpeciesDict.keys()]
 
         sum_of_species = ' + '.join([ name + '_M' for name in List_of_names])
         
         epsilon = '(epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
-        
-        epsilon2 = '(epsilon_shig_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
         
         for name in List_of_names:
             VarDef[name] += ' - (k_max * gamma_dif^n1 / (gamma_dif^n1 + '\
@@ -151,7 +152,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
                             '(S + alpha_muc)))^n1)) * ('+ name + ' * 10^'\
                             + str(exponent) + ' / V_L - ' + name +'_M / V_M)'
             
-            ICS[name + '_M'] = 0.0 # 0.1*SpeciesDict[species]['initAbundance']*1e5 # 0.0 # This should be non zero
+            ICS[name + '_M'] = 0.1*SpeciesDict[species]['initAbundance'] # 0.0 # This should be non zero
             
             VarDef[name + '_M'] = '(k_max * gamma_dif^n1/ (gamma_dif^n1 + '\
                                   '(Ep * (delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
@@ -160,7 +161,11 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
                                   ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                                   ' - ' + epsilon +'*'+name+'_M'
             
+            VarDef['B'] = '(' + epsilon + ' * (' + sum_of_species + ') / ('+ epsilon +'*('+sum_of_species +')))'\
+                      + '*max(0,(' + epsilon + '*(' + sum_of_species +') -T)) - k_5 * P * B + mu_B * B'
+            
             if 'Shigella_flexneri' in name:
+                epsilon2 = '(epsilon_shig_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
                 VarDef['B_shigella'] = '('+epsilon2+'* Shigella_flexneri_M)/('+ epsilon +\
                                        '*('+sum_of_species +'- Shigella_flexneri_M' +') + '\
                                        + epsilon2 + '* Shigella_flexneri_M )' + '*max(0, ('\
@@ -175,16 +180,18 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
                                       ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                                       ' - ' + epsilon2 +'*'+name+'_M'
                 
-                ParDef['epsilon_shig_0'] = 0.18
-                ParDef['K_T'] = 0.5
-                ParDef['mu_shigella'] = 0.05 ########################
- 
-        VarDef['B'] = '(' + epsilon + ' * (' + sum_of_species + ')/('\
+                VarDef['B'] = '(' + epsilon + ' * (' + sum_of_species + ')/('\
                       + epsilon+'*('+sum_of_species +'- Shigella_flexneri_M'\
                       +') + '+epsilon2 +'*Shigella_flexneri_M ))'\
                       + '*max(0,(' + epsilon + '*(' + sum_of_species +')'\
                       '  + ' + epsilon2 + ' * Shigella_flexneri_M  -T * '\
                       '(K_T/(K_T+B_shigella)))) - k_5 * P * B + mu_B * B'
+
+                ICS['B_Shigella'] = 0.0
+                ParDef['epsilon_shig_0'] = 0.18
+                ParDef['K_T'] = 0.5
+                ParDef['mu_shigella'] = 0.05 ########################
+ 
         
         VarDef['R_E'] = '(a_1*(' + sum_of_species + ')*(k_1*P+T_I))/((gamma_1+('\
                         + sum_of_species + '))*(1+alpha_RE*I_E))-mu_RE*R_E'
@@ -371,7 +378,7 @@ def plotImmuneResponse(SpeciesDict, AllPoints):
     for P in AllPoints:
         TimePoints['t'] += list(P['t'])
 
-    for variable in ['P', 'R_E', 'I_E', 'B', 'E']:
+    for variable in ['P', 'R_E', 'I_E', 'B', 'Ep']:
         TimePoints[variable] = []
         for P in AllPoints:
             TimePoints[variable]+=list(P[variable])
