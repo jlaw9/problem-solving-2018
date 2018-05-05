@@ -82,16 +82,16 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
 
             'epsilon_0':0.1,
             'epsilon_max':0.21,
-            # 'tau_p':24,
-            # 'f':0.5,
+
             'a_1':0.5,#
-            'gamma_1':5e6,
+            'gamma_1':5,#e6,
             'k_1':1,
             'alpha_RE':2,
             'mu_RE':0.1,
             'k_IE':19,#
-            'gamma_IE':10,
-            'alpha_11':0.1e-7,
+            
+            'gamma_IE':1.0,#10,
+            'alpha_11':0.1,#e-7,
             'mu_IE':1,
             'T':0.5,#1.1e6,
             'k_5':8,
@@ -168,7 +168,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
                 epsilon2 = '(epsilon_shig_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
                 VarDef['B_shigella'] = '('+epsilon2+'* Shigella_flexneri_M)/('+ epsilon +\
                                        '*('+sum_of_species +'- Shigella_flexneri_M' +') + '\
-                                       + epsilon2 + '* Shigella_flexneri_M )' + '*max(0, ('\
+                                       + epsilon2 + '* Shigella_flexneri_M )*max(0, ('\
                                        + epsilon + '*(' + sum_of_species +') + (' + epsilon2\
                                        + ' * Shigella_flexneri_M)  - T * ( K_T/ (K_T + B_shigella) )))'\
                                        ' - k_5 * P * B_shigella + mu_shigella * B_shigella'
@@ -393,12 +393,12 @@ def plotImmuneResponse(SpeciesDict, AllPoints):
     ax[0][1].set_xlabel('Time (hours)')
     ax[0][1].legend()
     
-    ax[1][0].plot(TimePoints['t'], TimePoints['P'], label = 'E')
+    ax[1][0].plot(TimePoints['t'], TimePoints['Ep'], label = 'Ep')
     ax[1][0].set_xlabel('Time (hours)')
     ax[1][0].legend()
     
-    ax[1][1].plot(TimePoints['t'], TimePoints['P'], label = 'R_E')
-    ax[1][1].plot(TimePoints['t'], TimePoints['P'], label = 'I_E')
+    ax[1][1].plot(TimePoints['t'], TimePoints['R_E'], label = 'R_E')
+    ax[1][1].plot(TimePoints['t'], TimePoints['I_E'], label = 'I_E')
     ax[1][1].set_xlabel('Time (hours)')
     ax[1][1].legend()
     
@@ -444,7 +444,7 @@ def plotMetabolites(AllPoints):
     plt.legend()
 
     
-def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, InitialValues = {}, cobraonly=False, with_essential=True):
+def simulateCommunity(SpeciesDict, Diet, TEND=1000, MaxIter=10, Kmax=0.01, InitialValues = {}, cobraonly=False, with_essential=True):
     """
     Simulates the microbial community.
     Arguments:
