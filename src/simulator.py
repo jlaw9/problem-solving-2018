@@ -362,6 +362,38 @@ def plotBiomassInMucosa(SpeciesDict, AllPoints):
     plt.ylabel('gdw')
     plt.legend(bbox_to_anchor=(1.2,1.2))
 
+
+def plotImmuneResponse(SpeciesDict, AllPoints):
+    TimePoints={}
+    TimePoints['t'] =[]
+    
+    for P in AllPoints:
+        TimePoints['t'] += list(P['t'])
+
+    for variable in ['P', 'R_E', 'I_E', 'B', 'E']:
+        TimePoints[variable] = []
+        for P in AllPoints:
+            TimePoints[variable]+=list(P[variable])
+
+    f, ax = plt.subplots(2,2)
+
+    ax[0][0].plot(TimePoints['t'], TimePoints['P'], label = 'P')
+    ax[0][0].set_xlabel('Time (hours)')
+    ax[0][0].legend()
+    
+    ax[0][1].plot(TimePoints['t'], TimePoints['B'], label = 'B')
+    ax[0][1].set_xlabel('Time (hours)')
+    ax[0][1].legend()
+    
+    ax[1][0].plot(TimePoints['t'], TimePoints['P'], label = 'E')
+    ax[1][0].set_xlabel('Time (hours)')
+    ax[1][0].legend()
+    
+    ax[1][1].plot(TimePoints['t'], TimePoints['P'], label = 'R_E')
+    ax[1][1].plot(TimePoints['t'], TimePoints['P'], label = 'I_E')
+    ax[1][1].set_xlabel('Time (hours)')
+    ax[1][1].legend()
+    
 def plotBiomassInBT(SpeciesDict, AllPoints):
     TimePoints={}
     TimePoints['t'] =[]
@@ -415,7 +447,7 @@ def simulateCommunity(SpeciesDict, Diet, TEND=100, MaxIter=10, Kmax=0.01, Initia
         List of PointSet objects and updated SpeciesDict
     """
     if not InitialValues:
-        SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet,cobraonly, use_essential)
+        SpeciesDict, Definition, ModelDS = defineDFBAModel(SpeciesDict, Diet,cobraonly, with_essential)
         InitialValues = {k:[v] for (k,v) in Definition.ics.iteritems()}
     AllPoints = []
     StoreNegatives = set()
@@ -571,7 +603,7 @@ def requiredNutrients(SpeciesDict, MediaDF, RemoveOutExchanges=False):
     CommunitySpeciesIDs = [sp for sp in SpeciesDict.keys()]
 
     for species_id in CommunitySpeciesIDs:
-        print(SpeciesDict[species_id]['Name'])
+        print("Building minimum reaction set for " + SpeciesDict[species_id]['Name'])
         model, DietSensitivity, EssentialMetabolites, NonEssentialMetabolites = getMinMetabolites(SpeciesDict,species_id,0.99,Clusters=True)
 
         

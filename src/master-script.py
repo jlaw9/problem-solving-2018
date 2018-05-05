@@ -62,14 +62,14 @@ def main(species, abundances={}, out_pref=None, diet="HighFiber", max_iters=10, 
         SpeciesDict[s] = {'File': model_file, 'initAbundance': abundances[s], 'orig_name': s}
         #count += 1
 
-    out_file = "%s%dmodels-%s-%diters.pdf" % (out_pref, len(species), diet, max_iters)
+    out_file_pref = "%s%dmodels-%s-%diters-" % (out_pref, len(species), diet, max_iters)
     out_dir = os.path.dirname(out_file)
     utils.checkDir(out_dir)
 
-    simulate_models(species, SpeciesDict, diet=diet, out_file=out_file, max_iters=max_iters, cobraonly=cobraonly, with_essential=with_essential)
+    simulate_models(species, SpeciesDict, diet=diet, out_file_pref=out_file_pref, max_iters=max_iters, cobraonly=cobraonly, with_essential=with_essential)
 
 
-def simulate_models(species, SpeciesDict, diet="HighFiber", out_file=None, max_iters=10,cobraonly=False, with_essential=False):
+def simulate_models(species, SpeciesDict, diet="HighFiber", out_file_pref=None, max_iters=10,cobraonly=False, with_essential=False):
     """
     *species*: list of species to simulate together
     *abundances*: abundances for those species
@@ -87,15 +87,27 @@ def simulate_models(species, SpeciesDict, diet="HighFiber", out_file=None, max_i
             # keep track of the abundance at the end of each iteration and write it to a file
             species_abundances[orig_name].append(points[-1])
     df = pd.DataFrame(species_abundances)
-    print("Writing the abundances to %s" % (out_file.replace('.pdf', '.tsv')))
-    df.to_csv(out_file.replace('.pdf', '.tsv'), sep='\t')
+    log_file = out_file_pref + 'logs.tsv'
+    
+    print("Writing the abundances to %s" % (log_file))
+    
+    df.to_csv(log_file, sep='\t')
 
     simulator.plotBiomass(SpecDict, Output)
     plt.title("Diet: %s" % (diet))
-    #out_file = "../viz/simulations-4.pdf"
-    print("writing %s" % (out_file))
-    plt.savefig(out_file, bbox_inches='tight')
-    plt.savefig(out_file.replace('.pdf', '.png'), bbox_inches='tight')
+
+    biomass_file = out_file_pref + 'biomass.pdf'
+    print("writing %s" % (biomass_file))
+    plt.savefig(biomass_file, bbox_inches='tight')
+    plt.savefig(biomass_file.replace('.pdf', '.png'), bbox_inches='tight')
+    
+    if not cobraonly:
+        simulator.plotImmuneResponse(SpecDict, Output)
+        plt.title("Diet: %s" % (diet))
+        immune_response_file = out_file_pref + 'immune_response.pdf'
+        print("writing %s" % (immune_response_file))
+        plt.savefig(immune_response_file, bbox_inches='tight')
+        plt.savefig(immune_response_file.replace('.pdf', '.png'), bbox_inches='tight')
 
 
 def parse_args(args):
