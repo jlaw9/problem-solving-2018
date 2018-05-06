@@ -93,10 +93,10 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
             'gamma_IE':1.0,#10,
             'alpha_11':0.1,#e-7,
             'mu_IE':1,
-            'T':0.5,#1.1e6,
+            'T':0.075, #0.5,#1.1e6,
             'k_5':8,
             'k_PM':0.025/scale,
-            'gamma_12':1.2e1,#1.2e5,
+            'gamma_12':1.1e-1,#1.2e1,#1.2e5,
             'k_PE':0.001/scale,
             'T_RE':0.65,
             'gamma_PE':1,
@@ -110,7 +110,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
             'epsilon_E': 0.1,
             'mu_B':0.0,
             'V_S1' : 0.1,
-            'T_EP' : 0.05,
+            'T_EP' : 0.9e-3, # 0.05
             'gamma_s1' : 1,
             'V_S2' : 0.4,
             'gamma_s2' : 1,
@@ -145,7 +145,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
         sum_of_species = ' + '.join([ name + '_M' for name in List_of_names])
         
         epsilon = '(epsilon_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
-        
+        VarDef['B'] = 'max(0,(' + epsilon + '*(' + sum_of_species +') - T)) - k_5 * P * B + mu_B * B'        
         for name in List_of_names:
             VarDef[name] += ' - (k_max * gamma_dif^n1 / (gamma_dif^n1 + '\
                             '(Ep * (delta_muc + S * (1 - delta_muc) / '\
@@ -161,24 +161,23 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
                                   ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                                   ' - ' + epsilon +'*'+name+'_M'
             
-            VarDef['B'] = '(' + epsilon + ' * (' + sum_of_species + ') / ('+ epsilon +'*('+sum_of_species +')))'\
-                      + '*max(0,(' + epsilon + '*(' + sum_of_species +') -T)) - k_5 * P * B + mu_B * B'
+
             
             if 'Shigella_flexneri' in name:
                 epsilon2 = '(epsilon_shig_0 + epsilon_E * (E_max - Ep)^ne/((E_max-Ep)^ne+k_epsilon^ne))'
-                VarDef['B_shigella'] = '('+epsilon2+'* Shigella_flexneri_M)/('+ epsilon +\
-                                       '*('+sum_of_species +'- Shigella_flexneri_M' +') + '\
-                                       + epsilon2 + '* Shigella_flexneri_M )*max(0, ('\
-                                       + epsilon + '*(' + sum_of_species +') + (' + epsilon2\
-                                       + ' * Shigella_flexneri_M)  - T * ( K_T/ (K_T + B_shigella) )))'\
-                                       ' - k_5 * P * B_shigella + mu_shigella * B_shigella'
-                
                 VarDef[name + '_M'] = '(k_max * gamma_dif^n1 / (gamma_dif^n1 + (Ep * '\
                                       '(delta_muc + S * (1 - delta_muc) / (S+alpha_muc)))^n1))'\
                                       '*(' + name + '*10^'+str(exponent)+'/V_L - ' + name + '_M/V_M)'\
                                       ' - (k_AD * ' + name + '_M)/(k_3+' + sum_of_species +')'\
                                       ' - (k_AT*R_E*'+ name+'_M)*Ep/(alpha_EM + R_E)'\
                                       ' - ' + epsilon2 +'*'+name+'_M'
+                
+                VarDef['B_shigella'] = '('+epsilon2+'* Shigella_flexneri_M)/('+ epsilon +\
+                                       '*('+sum_of_species +'- Shigella_flexneri_M' +') + '\
+                                       + epsilon2 + '* Shigella_flexneri_M )*max(0, ('\
+                                       + epsilon + '*(' + sum_of_species +') + 100*(' + epsilon2\
+                                       + ' * Shigella_flexneri_M)  - T * ( K_T/ (K_T + B_shigella) )))'\
+                                       ' - k_5 * P * B_shigella + mu_shigella * B_shigella'
                 
                 VarDef['B'] = '(' + epsilon + ' * (' + sum_of_species + ')/('\
                       + epsilon+'*('+sum_of_species +'- Shigella_flexneri_M'\
@@ -189,7 +188,7 @@ def defineDFBAModel(SpeciesDict , MediaDF, cobraonly, with_essential):
 
                 ICS['B_shigella'] = 0.0
                 ParDef['epsilon_shig_0'] = 0.18
-                ParDef['K_T'] = 0.5
+                ParDef['K_T'] = 0.05
                 ParDef['mu_shigella'] = 0.05 ########################
  
         

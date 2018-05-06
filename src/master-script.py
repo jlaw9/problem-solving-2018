@@ -102,9 +102,18 @@ def simulate_models(species, SpeciesDict, diet="HighFiber", out_file_pref=None, 
     plt.savefig(biomass_file.replace('.pdf', '.png'), bbox_inches='tight')
     
     if not cobraonly:
+        fig = plt.figure(figsize=(20,15))
         simulator.plotImmuneResponse(SpecDict, Output)
-        plt.title("Diet: %s" % (diet))
+        fig.suptitle("Diet: %s" % (diet))
         immune_response_file = out_file_pref + 'immune_response.pdf'
+        print("writing %s" % (immune_response_file))
+        plt.savefig(immune_response_file, bbox_inches='tight')
+        plt.savefig(immune_response_file.replace('.pdf', '.png'), bbox_inches='tight')
+
+        plt.figure()
+        simulator.plotBiomassInMucosa(SpecDict, Output)
+        plt.title("Diet: %s" % (diet))
+        immune_response_file = out_file_pref + 'biomass-mucosa.pdf'
         print("writing %s" % (immune_response_file))
         plt.savefig(immune_response_file, bbox_inches='tight')
         plt.savefig(immune_response_file.replace('.pdf', '.png'), bbox_inches='tight')
