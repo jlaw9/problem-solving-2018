@@ -28,9 +28,29 @@ import utils
 
 DFBA_DIR = 'dfba/data'
 RESULTSDIR = 'outputs/'
-SBML_DIR = "%s/average-european-diet" % (DFBA_DIR)
-ALL_SBML_DIR = "/data/amogh-jalihal/Problem-Solving/average-european-diets/sbml"
+# I tried simulating their models, but the reactions don't follow the standard nomenclature
+#SBML_DIR = "%s/human-metabolic-atlas" % (DFBA_DIR)
+#SBML_DIR = "%s/average-european-diet" % (DFBA_DIR)
+# TODO make the Data Directory into an options
+DATA_DIR = '/data/amogh-jalihal/Problem-Solving/'
+#ALL_SBML_DIR = "/data/amogh-jalihal/Problem-Solving/average-european-diets/sbml"
 DIET_DIR = "%s/diet-definitions" % (DFBA_DIR)
+
+SBML_Dict = {
+        'unconstrained':         '%s/unconstrained' % (DFBA_DIR),
+        'western':               '%s/western-diet' % (DFBA_DIR),
+        'european':              '%s/average-european-diet' % (DFBA_DIR),
+        'high-fiber':            '%s/high-fiber-diet' % (DFBA_DIR),
+#        'human-metabolic-atlas': '%s/human-metabolic-atlas' % (DFBA_DIR),
+}
+
+ALL_SBML_DIR = {
+        'unconstrained':  '%s/unconstrained/sbml' % (DATA_DIR),
+        'western':        '%s/western-diet/sbml' % (DATA_DIR),
+        'european':       '%s/average-european-diets/sbml' % (DATA_DIR),
+        'high-fiber':     '%s/high-fiber-diet/sbml' % (DATA_DIR),
+#        'human-metabolic-atlas': '%s/human-metabolic-atlas' % (DFBA_DIR),
+}
 
 DietDict = {
     'HighFiber':     '%s/VMH_HighFiber.tsv' % (DIET_DIR),
@@ -42,7 +62,7 @@ DietDict = {
 }
 
 
-def main(species, abundances={}, out_pref=None, diet="HighFiber", max_iters=10, cobraonly=False, with_essential=False):
+def main(species, abundances={}, out_pref=None, constraints='european', diet="HighFiber", max_iters=10, cobraonly=False, with_essential=False):
 
     #model_file_template = "%s/%%s.xml" % (SBML_DIR)
     # start with the default 0.01 for all species
@@ -54,22 +74,22 @@ def main(species, abundances={}, out_pref=None, diet="HighFiber", max_iters=10, 
     SpeciesDict = {}
     for s in species:
         #model_file = model_file_template % (s)
-        model_file = "%s/%s.xml" % (SBML_DIR, s)
+        model_file = "%s/%s.xml" % (SBML_Dict[constraints], s)
         if not os.path.isfile(model_file):
             #print("%s doesn't exist. copying it from %s" % (model_file, ALL_SBML_DIR))
-            print("%s doesn't exist. using it from %s" % (model_file, ALL_SBML_DIR))
-            model_file = "%s/%s.xml" % (ALL_SBML_DIR, s)
+            print("%s doesn't exist. using it from %s" % (model_file, ALL_SBML_DIR[constraints]))
+            model_file = "%s/%s.xml" % (ALL_SBML_DIR[constraints], s)
         SpeciesDict[s] = {'File': model_file, 'initAbundance': abundances[s], 'orig_name': s}
         #count += 1
 
-    out_file_pref = "%s%dmodels-%s-%diters-" % (out_pref, len(species), diet, max_iters)
+    out_file_pref = "%s%dmodels-%s-%s-%diters-" % (out_pref, len(species), constraints, diet, max_iters)
     out_dir = os.path.dirname(out_file_pref)
     utils.checkDir(out_dir)
 
     simulate_models(species, SpeciesDict, diet=diet, out_file_pref=out_file_pref, max_iters=max_iters, cobraonly=cobraonly, with_essential=with_essential)
 
 
-def simulate_models(species, SpeciesDict, diet="HighFiber", out_file_pref=None, max_iters=10,cobraonly=False, with_essential=False):
+def simulate_models(species, SpeciesDict, constraints='european', diet="HighFiber", out_file_pref=None, max_iters=10,cobraonly=False, with_essential=False):
     """
     *species*: list of species to simulate together
     *abundances*: abundances for those species
@@ -94,7 +114,7 @@ def simulate_models(species, SpeciesDict, diet="HighFiber", out_file_pref=None, 
     df.to_csv(log_file, sep='\t')
 
     simulator.plotBiomass(SpecDict, Output)
-    plt.title("Diet: %s" % (diet))
+    plt.title("Constraints: %s, Diet: %s" % (constraints, diet))
 
     biomass_file = out_file_pref + 'biomass.pdf'
     print("writing %s" % (biomass_file))
@@ -104,7 +124,11 @@ def simulate_models(species, SpeciesDict, diet="HighFiber", out_file_pref=None, 
     if not cobraonly:
         fig = plt.figure(figsize=(20,15))
         simulator.plotImmuneResponse(SpecDict, Output)
+<<<<<<< HEAD
         fig.suptitle("Diet: %s" % (diet))
+=======
+        plt.title("Constraints: %s, Diet: %s" % (constraints, diet))
+>>>>>>> 4a146144e636a9c85e6e640504d39612c73fa1e8
         immune_response_file = out_file_pref + 'immune_response.pdf'
         print("writing %s" % (immune_response_file))
         plt.savefig(immune_response_file, bbox_inches='tight')
@@ -126,16 +150,20 @@ def parse_args(args):
                       help="List of species to simulate together. Not needed if abundances_file is given")
     parser.add_option('','--abundances-file',type='string', 
                       help="File containing the species name in the first column, and the abundance to use in the second")
+    parser.add_option('','--constraints',type='string', default='european',
+                      help="SBML constraints to use. Default='european'. Options are: '%s'" % ("', '".join(sorted(SBML_Dict.keys()))))
     parser.add_option('','--diet',type='string', default='HighFiber',
                       help="Diet to use Default='HighFiber'. Options are: '%s'" % ("', '".join(sorted(DietDict.keys()))))
     parser.add_option('','--out-pref',type='string', default="outputs/dfba/test",
                       help="output prefix for plot")
     parser.add_option('','--max-iters',type='int', default=10,
                       help="number of iterations to run the simulation")
-    parser.add_option('','--with-essential',action="store_true",
-                      help="Simulate community with Shigella flexneri, a pathogen")
-    parser.add_option('','--cobraonly',action="store_true",
-                    help="Only simulate the FBA models.")
+    parser.add_option('','--with-essential',action="store_true", default=False,
+                      help="Find exchange reactions essential to the growth of the microbes, and add those to the diet")
+    parser.add_option('','--cobraonly',action="store_true", default=False,
+                    help="Simulate the FBA models only, not the immune system.")
+    parser.add_option('','--shigella', type='float',
+                    help="Add Shigella flexneri (pathogen) to the list of species with a specified abundance (gdw). Usually 0.01 is the default.")
 
     (opts, args) = parser.parse_args()
 
@@ -145,13 +173,20 @@ def parse_args(args):
 if __name__ == "__main__":
     opts, args = parse_args(sys.argv)
 
+    if opts.diet not in DietDict:
+        print("Error: %s not an available diet. Options are: '%s'" % ("', '".join(sorted(DietDict.keys()))))
+        sys.exit(1)
+    if opts.constraints not in SBML_Dict:
+        print("Error: %s not an available diet. Options are: '%s'" % ("', '".join(sorted(SBML_Dict.keys()))))
+        sys.exit(1)
+
     #abundances = {s: 0.01 for s in species}
     species = None
     abundances = {}
     
     if opts.species_file is not None:
         df = pd.read_csv(opts.species_file, sep='\t')
-        species = df['species']
+        species = set(df['species'].tolist())
         print(species)
             
     elif opts.abundances_file is not None:
@@ -159,7 +194,7 @@ if __name__ == "__main__":
         print(df)
         abundances = dict(zip(df['species'], df['abundance']))
         if species is None:
-            species = df.species
+            species = set(df['species'].tolist())
     else:
         ListOfMostAbundantSpecies = [
             'Bacteroides_thetaiotaomicron_VPI_5482',
@@ -167,12 +202,16 @@ if __name__ == "__main__":
             #'Parabacteroides_johnsonii_DSM_18315',
             #'Prevotella_oralis_ATCC_33269'
         ]
-        species = ListOfMostAbundantSpecies
+        species = set(ListOfMostAbundantSpecies)
         print("No species specified. Using defaults:")
         print(species)
 
+    if opts.shigella is not None:
+        species.add('Shigella_flexneri_2002017')
+        abundances['Shigella_flexneri_2002017'] = opts.shigella
+
     
     #main(ListOfMostAbundantSpecies, opts.out_pref, abundances, max_iters=opts.max_iters)
-    main(species, abundances=abundances, diet=opts.diet,
+    main(species, abundances=abundances, constraints=opts.constraints, diet=opts.diet,
          out_pref=opts.out_pref, max_iters=opts.max_iters, cobraonly=opts.cobraonly,
          with_essential=opts.with_essential)
