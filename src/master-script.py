@@ -124,11 +124,7 @@ def simulate_models(species, SpeciesDict, constraints='european', diet="HighFibe
     if not cobraonly:
         fig = plt.figure(figsize=(20,15))
         simulator.plotImmuneResponse(SpecDict, Output)
-<<<<<<< HEAD
-        fig.suptitle("Diet: %s" % (diet))
-=======
-        plt.title("Constraints: %s, Diet: %s" % (constraints, diet))
->>>>>>> 4a146144e636a9c85e6e640504d39612c73fa1e8
+        fig.suptitle("Constraints: %s, Diet: %s" % (constraints, diet))
         immune_response_file = out_file_pref + 'immune_response.pdf'
         print("writing %s" % (immune_response_file))
         plt.savefig(immune_response_file, bbox_inches='tight')
