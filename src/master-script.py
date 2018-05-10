@@ -160,6 +160,8 @@ def parse_args(args):
                     help="Simulate the FBA models only, not the immune system.")
     parser.add_option('','--shigella', type='float',
                     help="Add Shigella flexneri (pathogen) to the list of species with a specified abundance (gdw). Usually 0.01 is the default.")
+    parser.add_option('','--indv-sp',action="store_true", default=False,
+                      help="Simulate each of the species individually")
 
     (opts, args) = parser.parse_args()
 
@@ -206,8 +208,14 @@ if __name__ == "__main__":
         species.add('Shigella_flexneri_2002017')
         abundances['Shigella_flexneri_2002017'] = opts.shigella
 
-    
-    #main(ListOfMostAbundantSpecies, opts.out_pref, abundances, max_iters=opts.max_iters)
-    main(species, abundances=abundances, constraints=opts.constraints, diet=opts.diet,
-         out_pref=opts.out_pref, max_iters=opts.max_iters, cobraonly=opts.cobraonly,
-         with_essential=opts.with_essential)
+    if opts.indv_sp:
+        for s in species:
+            out_pref = opts.out_pref + "/individual/%s" % (s)
+            main(set([s]), constraints=opts.constraints, diet=opts.diet,
+                 out_pref=out_pref, max_iters=opts.max_iters, cobraonly=opts.cobraonly,
+                 with_essential=opts.with_essential)
+    else:
+        #main(ListOfMostAbundantSpecies, opts.out_pref, abundances, max_iters=opts.max_iters)
+        main(species, abundances=abundances, constraints=opts.constraints, diet=opts.diet,
+             out_pref=opts.out_pref, max_iters=opts.max_iters, cobraonly=opts.cobraonly,
+             with_essential=opts.with_essential)
