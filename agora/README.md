@@ -1,3 +1,11 @@
+## Analysis
+To recreate the representative species results the notebooks should be run in the following order: 
+1. Agora-models.ipynb
+2. Abundances.ipynb
+3. Clustering-models.ipynb
+4. Cluster-abundances.ipynb
+
+## Data
 filename:    | agora-1_02-sbml.tar.xz
 -------------|-------------------------------------------------------------
 link:        | https://vmh.uni.lu/#downloadview
