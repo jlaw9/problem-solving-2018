@@ -1,0 +1,6 @@
+# 2018-04-23
+# abundances downloaded from here: https://www.hmpdacc.org/hmp/hmsmcp2/
+
+# get the species level abundances
+# taken from here: https://bitbucket.org/biobakery/biobakery/wiki/metaphlan2#rst-header-id33
+grep -E "(s__)|(^ID)" hmp1-II_metaphlan2-mtd-qcd.pcl | grep -v "t__" | sed 's/^.*s__//g' > merged_abundance_table_species.txt

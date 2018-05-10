@@ -1,0 +1,451 @@
+metabolite	# of strains
+ Dimer GalNAc-IdoA	4
+ Dimer GalNAc-IdoA2S	4
+(3,4-dihydroxyphenyl)acetate	87
+(4-hydroxyphenyl)acetaldehyde	37
+(R)-3-hydroxybutyrate	143
+(R)-Acetoin	100
+(R)-Pantothenate	460
+(R)-lactate	497
+(S)-lactate	617
+(S)-malate(2-)	281
+(S)-propane-1,2-diol	118
+1,2-Diacyl-sn-glycerol (dioctadecanoyl, n-C18:0)	268
+1,5-Diaminopentane	82
+12-Dehydrocholate	1
+2,3-dihydroxicinnamic acid	37
+2-(Hydroxymethyl)phenol	156
+2-Dehydro-3-deoxy-D-gluconate	117
+2-Demethylmenaquinone 8	243
+2-Hydroxyphenylacetate	116
+2-O-methylxylose (rare sugar in rhamnogalacturonan II)	2
+2-Oxobutanoate	297
+2-Oxoglutarate	189
+2-deoxy-D-ribose	437
+2-deoxyadenosine	491
+2-methylbutyrate	6
+2-o-methylfucose (rare sugar in rhamnogalacturonan II)	2
+3-(2,3-Dihydroxyphenyl)propanoate	37
+3-(3-hydroxy-phenyl)propionate	28
+3-(n-Morpholino)Propanesulfonic Acid	271
+3-Dehydrochenodeoxycholate	15
+3-Dehydrocholate	15
+3-Deoxy-D-manno-2-octulosonate	2
+3-Hydroxyphenylacetate	74
+3-deoxy-d-lyxo-heptulosaric acid (rare sugar in rhamnogalacturonan II)	2
+3-hydroxycinnamic acid	20
+3-methyl-2-oxopentanoate	298
+3alpha,12alpha-Dihydroxy-7-oxo-5beta-cholanate	34
+4,5-dihydroxy-2,3-pentanedione	728
+4-Aminobenzoate	324
+4-Aminobutanoate	159
+4-Hydroxy-benzyl alcohol	188
+4-Methylcatechol	4
+4-hydroxybenzoate	361
+4-hydroxyphenylacetate	27
+5,6-Dimethylbenzimidazole	97
+5-Aminopentanoate	6
+5-Deoxyadenosine	160
+5-Methylthio-D-ribose	496
+5-deoxyribose	269
+5-hydroxy-L-tryptophan	193
+7-Dehydrochenodeoxycholate	34
+AMP	198
+Aceric acid (3-C-carboxy-5-deoxy-l-xylose) (rare sugar in rhamnogalacturonan II)	2
+Adenine	251
+Adenosine	363
+Adenosylcobalamin	474
+Allantoin	228
+Allodeoxycholic acid	5
+Allolithocholic acid	5
+Alpha-mannan, yeast, has a MW of about 25000 (PMID: 5461381), equals ~ 140 mannose units. ID according to iMM904	3
+Ammonium	818
+Amylopectin, 900 repeat units	31
+Arabinan, polymer of 1,5-a-L-linked arabinofuranose units substituted by 1,3 or 1,2 linked branches, MW ~ 15000 Da (REF: www.meg... <Preview truncated at 128 characters>	4
+Arabinotriose	175
+Arabinoxylan, 30 xyl_D, 18 arab_L, 3 gal, 3 glc_D	9
+Arbutin	547
+Arsenobetaine	285
+Bicarbonate	4
+Biotin	552
+CMP	3
+Cadmium	805
+Carob galactomannan, Gal:Man ratio 22/78. 220 gal, 780 man assumed	3
+Cellulose, chain length 500 glc_D assumed, DOI: 10.1002/anie.200460587	4
+Chicory inulin, 30 monosaccharide units (29 fru, 1 glc) on average	65
+Chloride	818
+Cholate	216
+Choline	305
+Choline sulfate	105
+Citrate	324
+Citrate-Mg	43
+Co2+	818
+Cob(I)alamin	480
+Cob(II)alamin	472
+Coenzyme A	4
+Coprostanol	6
+Core 2	17
+Core 3	17
+Core 4	17
+Core 5	17
+Core 6	17
+Core 7	17
+Core 8	17
+Cu2+	818
+Cyanate	38
+Cytidine	498
+D-Apiose (rare sugar in rhamnogalacturonan II)	2
+D-Arabinose	42
+D-Fructose	642
+D-Galactarate	68
+D-Galactonate	79
+D-Galactose	498
+D-Galacturonate	169
+D-Glucosamine	476
+D-Glucose 6-phosphate	46
+D-Mannitol	512
+D-Mannose	648
+D-Mannose 6-phosphate	46
+D-Methionine	629
+D-alanine	302
+D-glucarate(2-)	68
+D-glucitol	503
+D-gluconate	189
+D-glucose	718
+D-glucuronate	168
+D-ribose	491
+D-serine	265
+DNA replication	818
+Deoxycytidine	479
+Deoxyguanosine	446
+Deoxyinosine	295
+Deoxyuridine	295
+Dephospho-CoA	25
+Dextran 40, 1,6-alpha-D-Glucan	6
+Dextrin	109
+Diacetyl	38
+Dimer GalNAc-GlcA	4
+Dimer GalNAc4S-GlcA	4
+Dimer GalNAc4S-IdoA2S	4
+Dimer GalNAc6S-GlcA	4
+Dimethyl sulfide	40
+Dimethyl sulfoxide	40
+Diphosphate	490
+F1alpha	17
+Fe2+	818
+Fe3+	818
+Ferrichrome	188
+Folate	361
+Formate	739
+Fumarate	315
+GTP	5
+GlcNAc-alpha-1,4-Core 1	17
+GlcNAc-alpha-1,4-Core 2	17
+Glucosamine 2,6-sulfate	5
+Glutarate	27
+Gly-Cys	663
+Glycerol	659
+Glycerol 3-phosphate	394
+Glycine	776
+Glycyl-L-asparagine	665
+Glycyl-L-aspartate	668
+Glycyl-L-glutamate	663
+Glycyl-L-glutamine	663
+Glycyl-L-methionine	670
+Glycyl-L-tyrosine	663
+Glycylleucine	663
+Glycylphenylalanine	663
+Glycylproline	664
+Guanine	525
+Guanosine	151
+Hexadecanoate (n-C16:0)	288
+Hg2+	766
+Homogalacturonan, 100 galacturonate residues. Assumed to be methylated/ acetylated in every 5th residue. Citrus HG consists of 7... <Preview truncated at 128 characters>	2
+Hydrogen	250
+Hydrogen peroxide	1
+Hydrogen sulfide	364
+Hydroquinone	118
+Hypoxanthine	616
+Indole	164
+Indole-3-propionate	6
+Inosine	371
+Isethionic acid	271
+Isobutyrate, 2-Methylpropanoate	116
+Isocaproate	121
+Isochenodeoxycholate	6
+Isocholate	6
+Isocitrate	6
+Isoprene	5
+Isovalerate, 3-Methylbutanoate	127
+KDO(2)-lipid IV(A) with laurate	101
+Kestopentaose (4 fru, 1 glc inulin-type fructo-oligosaccharide)	74
+Kestose (2 fru, 1 glc inulin-type fructo-oligosaccharide)	74
+Kestotetraose (3 fru, 1 glc inulin-type fructo-oligosaccharide)	74
+Konjac glucomannan, MW 77,500 (PMID:17962981), Man:Glc ~ 2:1. -> 286 man, 143 glc_D	2
+L-Carnitine	136
+L-Fucose 1-phosphate	46
+L-Idonate	10
+L-Lyxose	13
+L-Methionine Sulfoxide	635
+L-Rhamnose	161
+L-Sorbitol (iMM904)	9
+L-alanine	770
+L-alanyl-L-aspartate	666
+L-alanyl-L-glutamate	664
+L-alanyl-L-glutamine	663
+L-alanyl-L-histidine	676
+L-alanyl-L-leucine	667
+L-alanyl-L-threonine	673
+L-alanylglycine	665
+L-arabinose	556
+L-argininium(1+)	656
+L-asparagine	797
+L-aspartate(1-)	741
+L-cysteate(1-)	271
+L-cysteine	728
+L-cysteinylglycine	757
+L-cystine	17
+L-dopa	193
+L-fucose	49
+L-glutamate(1-)	746
+L-glutamine	759
+L-histidine	717
+L-homocysteine	498
+L-homoserine	1
+L-iduronate	6
+L-isoleucine	660
+L-kynurenine	51
+L-leucine	787
+L-lysinium(1+)	814
+L-methionine	799
+L-methionine-R-sulfoxide	629
+L-methionyl-L-alanine	679
+L-phenylalanine	767
+L-proline	792
+L-serine	780
+L-threonine	792
+L-tryptophan	533
+L-tyrosine	714
+L-valine	790
+Lactose	363
+Laminaribiose	3
+Larch arabinogalactan, gal/ara 6:1, small amount of glcur, MW ~ 116000	16
+Lead	766
+Levan, 1000 fructose units	2
+Levanbiose	2
+Levantetraose	2
+Levantriose	2
+Lichenin from Icelandic moss, 170 glucose residues. DOI: 10.1039/JR9570001951	1
+Malonate	30
+Maltohexaose	418
+Maltose	710
+Melibiose	236
+Menaquinone 7	157
+Menaquinone 8	268
+Methane	4
+Methanethiol	11
+Mn2+	818
+Molybdate	49
+N,N-diacetylchitobiose	70
+N-acetyl-D-galactosamine	24
+N-acetyl-D-glucosamine	577
+N-acetyl-D-mannosamine	5
+N-acetylneuraminate	46
+NMN	225
+Nicotinamide	70
+Nicotinamide adenine dinucleotide phosphate	4
+Nicotinate	815
+Nitrate	413
+Nitric oxide	14
+Nitrite	408
+Nitrogen	25
+Nitrous oxide	11
+Not degradable product CSABCPASE_A/B, Gal4S-Gal-Xyl-L-Ser-protein	4
+Not degradable product CSABCPASE_C, Gal6S-Gal-Xyl-L-Ser-protein	4
+O2	818
+Oat spelt xylan, MW 79200 (DOI: 10.1002/masy.200551405) = 528 xyl_D	22
+Ornithine	559
+Oxaloacetate	7
+Oxidized glutathione	75
+Pectic galactan (potato), gal: arab-L: rmn: galur = 78: 9: 4: 9 (www.megazyme.com). Assumed to consist of 100 sugars per macromo... <Preview truncated at 128 characters>	4
+Peptidoglycan polymer (n-1 subunits)	262
+Phenylpropanoate	130
+Pimelate	27
+Polysulfide	4
+Potato rhamnogalacturonan I, MW assumed ~200000, 62 galur, 20 rmn, 12 gal, 3 arab-L, 1 xyl-D (www.megazyme.com, PMID: 16661590)	4
+Produced biomass	818
+Product 1 HEPARL1_e, IdoA-GlcN2,6diS-GlcA-GlcN2,3,6triS	5
+Product 2 HEPARL1_e, IdoA2S-GlcN2,6diS-IdoA2S-GlcNAc3S-GlcA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product AS3TASE_HS1, GlcN2S-GlcA-GlcN2S	5
+Product AS3TASE_HS2, GlcN2S-IdoA-GlcNAc-GlcA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product AS6TASE_HS1, GlcN2S-GlcA-GlcN2,3diS	5
+Product AS6TASE_HS2, GlcN2S-IdoA-GlcNAc3S-GlcA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product GAM2STASE_HS2, GlcN-GlcA-GlcN	5
+Product GAM2STASE_HS3, GlcN-IdoA-GlcNAc-GlcA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product GLCAASE_HS, GlcNAc-IdoA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product GLCNACASE_HS2, GlcA-GlcNAc-IdoA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product GLCNACASE_HS3, IdoA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product IDOURASE_HS1, GlcN2,6diS-GlcA-GlcN2,3,6triS	5
+Product IDOURASE_HS2, GlcN2,6diS-IdoA-GlcNAc3S-GlcA-Gal-Gal-Xyl-L-Ser (protein)	5
+Product IDOURASE_HS3, Gal-Gal-Xyl-L-Ser (protein)	5
+Product IS2TASE_HS1, IdoA-GlcN2,6diS-IdoA-GlcNAc3S-GlcA-Gal-Gal-Xyl-L-Ser (protein)	5
+Propane-1,3-diol	43
+Protein biosynthesis	818
+Protoheme	550
+Putrescine	566
+Pyridoxal	705
+Pyridoxamine	586
+Pyridoxine	597
+RNA transcription	818
+R_R__2_3_Butanediol	12
+Raffinose	205
+Reduced glutathione	251
+Reduced riboflavin	17
+Riboflavin	471
+S-Adenosyl-4-methylthio-2-oxobutanoate	104
+S-Adenosyl-L-homocysteine	4
+S-Adenosyl-L-methionine	1
+Salicin	575
+Siroheme	429
+Sodium	799
+Spermidine	718
+Stachyose	137
+Succinate	776
+Sucrose	625
+Sulfite	48
+Sulfur	104
+T antigen (core 1)	17
+Taurine	485
+Tetrathionate	26
+Thiamin	672
+Thiamin monophosphate	1
+Thiamine diphosphate	8
+Thymidine	510
+Tn antigen	17
+Trehalose	540
+Trimethylamine N-oxide	58
+Tyr-194 of apo-glycogenin protein (primer for glycogen synthesis)	79
+UDP-D-glucuronate	1
+Ubiquinol-8	2
+Ubiquinone-8	307
+Undegradable product GALASE_HS, Xyl-L-Ser (protein)	5
+Urea	331
+Uridine	473
+Ursocholate	3
+Ursodeoxycholoyl-CoA	5
+Ursodiol	8
+Water	818
+Wine rhamnogalacturonan II, MW ~ 5-10 kDa, 37% galur, 16% rmn, 3% fuc-L, 11% arab-L, 6% gal, 5% glcur, 4% 2omfuc, 3% 2omxyl, 6% ... <Preview truncated at 128 characters>	2
+Xanthine	492
+Xyluglucan, PMID:16663672, Fry SC 1989. 600 glc_D, 360 xyl_D, 108 gal, 60 fuc_L, 6 arab_L	7
+Zinc	818
+acetaldehyde	629
+acetate	813
+acetoacetate	112
+aldehydo-D-xylose	399
+amylose (n=300 repeat units, alpha-1,4-glc)	28
+arsenate	239
+arsenite	239
+beta-glucans	3
+butanesulfonate	271
+butanol	22
+butyrate	279
+calcium(2+)	818
+carbon dioxide	818
+cardiolipin (12-methyl-tetradecanoyl, anteiso-C15)	23
+cardiolipin (12-methyl-tridecanoyl, iso-C14)	7
+cardiolipin (13-methyl-tetradecanoyl, iso-C15)	24
+cardiolipin (14-methyl-hexadecanoyl, anteiso-C17)	98
+cardiolipin (14-methyl-pentadecanoyl, iso-C16)	80
+cardiolipin (15-methyl-hexadecanoyl, iso-C17)	99
+cardiolipin (tetrahexadecanoyl, n-C16:0)	80
+cardiolipin (tetraoctadecanoyl, n-C18:0)	159
+cardiolipin (tetratetradecanoyl, n-C14:0)	83
+cellobiose	376
+chenodeoxycholate	216
+chenodeoxycholoyl coenzyme a	5
+cholesterol	8
+choloyl-CoA(4-)	5
+chondroitin sulfate A (GalNAc4S-GlcA) proteoglycan	4
+chondroitin sulfate B / dermatan sulfate (IdoA2S-GalNAc4S) proteoglycan	4
+chondroitin sulfate C (GalNAc6S-GlcA) proteoglycan	4
+chorismate	57
+chromate	298
+crotonobetaine	217
+cytosine	476
+dATP	4
+dTDP-L-rhamnose	1
+dTMP	5
+dTTP	5
+deoxycholic acid	5
+disialyl-T antigen	17
+dopaminium(1+)	193
+etha[c]	166
+ethanesulfonate	271
+ethanol	463
+formaldehyde	5
+galactitol	562
+gamma-butyrobetaine	233
+glycine betaine	505
+glycochenodeoxycholate	185
+glycocholate	185
+glycogen, structure 2 (glycogenin-1,6-{7[1,4-Glc], 4[1,4-Glc]})	79
+glycogen, structure 4 (glycogenin-1,6-{2[1,4-Glc], [1,4-Glc]})	79
+glycogen, structure 5 (glycogenin-2[1,4-Glc])	79
+glycolaldehyde	619
+glycolate	78
+heparan sulfate proteoglycan	5
+hexanesulfonate	271
+histamium	196
+hyaluronan	5
+hyaluronan biosynthesis, precursor 1	5
+hyaluronan degradation product 1	5
+hydrogenphosphate	817
+indole-3-acetate	216
+keto-phenylpyruvate	27
+laminarin (n=30 repeat units, beta -1,3 glc)	3
+lanosterol	3
+laurate	190
+lithocholate	5
+magnesium	818
+maltotriose	434
+mannotriose (beta-1,4)	155
+meso-2,6-Diaminoheptanedioate	515
+methanesulfonate	271
+methanol	31
+myo-inositol	82
+nickel	62
+octadecanoate (n-C18:0)	504
+octadecenoate (n-C18:1)	128
+oxalate(2-)	44
+p-Cresol	4
+p-hydroxyphenylpropionic acid	1
+pectins	26
+phenylacetate	56
+potassium	818
+propionate	599
+protein-linked serine or threonine residue (O-glycosylation site)	17
+proton	818
+pullulan (n=1200 repeat units, alpha-1,4 and alph-1,6 bounds)	25
+pyruvate	100
+selenate	14
+selenite	14
+serotonin(1+)	193
+sialyl-T antigen	17
+sialyl-Tn antigen	17
+starch n=1200 repeat units (300 repeat units amylose, 900 repeat units amylopectin, corresponds to potatoe starch)	2
+starch, structure 1 (1,6-{7[1,4-Glc], 4[1,4-Glc]})	133
+starch, structure 2 (1,6-{2[1,4-Glc], [1,4-Glc]})	133
+sulfate	818
+sulfoacetate	271
+taurochenodeoxycholate	185
+taurocholate	185
+teichuronic acid (GlcA + GalNac, 45 repeating unit)	30
+tetradecanoate (n-C14:0)	396
+thiosulfate(2-)	252
+trans-Cinnamate	6
+trimethylamine	114
+tryptaminium	204
+tyraminium	231
+uracil	695
+xanthosine	34
